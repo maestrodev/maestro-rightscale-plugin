@@ -1,0 +1,108 @@
+[
+  {
+    "name":"rightscale start server",
+    "description":"Start a server defined in RightScale",
+    "license":"Apache License 2.0",
+    "author":"Brett Porter",
+    "version":"1.0-SNAPSHOT",
+    "class":"MaestroDev::RightScaleWorker",
+    "type":"ruby",
+    "dependencies":[
+      {
+        "name":"rest_connection",
+        "version":"1.0.1.maestrodev",
+        "source":"http://rubygems.org/"
+      }
+    ],
+    "task":{
+      "command":"/rightscale/start",
+      "inputs":{
+        "nickname":{
+          "required":false,
+          "type":"String",
+          "value":""
+        },
+        "server_id":{
+          "required":false,
+          "type":"String",
+          "value":""
+        },
+        "account_id":{
+          "required":true,
+          "type":"String",
+          "value":""
+        },
+        "username":{
+          "required":true,
+          "type":"String",
+          "value":""
+        },
+        "password":{
+          "required":true,
+          "type":"Password",
+          "value":""
+        }
+      },
+      "outputs":{
+        "rightscale_server_id":{
+          "type":"int"
+        },
+        "rightscale_ip_address":{
+          "type":"String"
+        },
+        "rightscale_private_ip_address":{
+          "type":"String"
+        }
+      },
+      "tool_name":"Cloud"
+    }
+  },
+  {
+    "name":"rightscale stop server",
+    "description":"Stop a server defined in RightScale",
+    "license":"Apache License 2.0",
+    "author":"Brett Porter",
+    "version":"1.0-SNAPSHOT",
+    "class":"MaestroDev::RightScaleWorker",
+    "type":"ruby",
+    "dependencies":[
+      {
+        "name":"rest_connection",
+        "version":"1.0.1.maestrodev",
+        "source":"http://rubygems.org/"
+      }
+    ],
+    "task":{
+      "command":"/rightscale/stop",
+      "inputs":{
+        "nickname":{
+          "required":false,
+          "type":"String",
+          "value":""
+        },
+        "server_id":{
+          "required":false,
+          "type":"String",
+          "value":""
+        },
+        "account_id":{
+          "required":true,
+          "type":"String",
+          "value":""
+        },
+        "username":{
+          "required":true,
+          "type":"String",
+          "value":""
+        },
+        "password":{
+          "required":true,
+          "type":"Password",
+          "value":""
+        }
+      },
+      "outputs":{},
+      "tool_name":"Cloud"
+    }
+  }
+]
