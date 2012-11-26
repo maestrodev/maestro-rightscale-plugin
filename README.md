@@ -1,0 +1,2 @@
+maestro-rightscale-plugin
+=========================
