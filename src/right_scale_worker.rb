@@ -62,7 +62,7 @@ module MaestroDev
         raise 'Invalid fields, must provide nickname or server_id' if server_name.nil? and server_id.nil?
 
         init_server_connection()
-        unless server_id.nil?
+        if server_id
           server = Server.find(:first) { |s| s.rs_id = server_id }
           if server.nil?
             raise "No server with id #{server_id}"
@@ -81,7 +81,7 @@ module MaestroDev
 
         write_output "Requested server to stop #{server.rs_id}\n"
 
-        server.wait_for_state("stopped")
+        server.wait_for_state("stopped") if get_field('wait_until_stopped')
 
         write_output "Server stopped\n"
       rescue Exception => e
@@ -91,6 +91,50 @@ module MaestroDev
       end
 
       Maestro.log.info "***********************Completed RightScale.stop***************************"
+    end
+
+    def wait
+      begin
+        Maestro.log.info "Starting RightScale Worker"
+        validate_fields
+
+        server_name = get_field('nickname')
+        server_id = get_field('server_id') || get_field('rightscale_server_id')
+
+        state = get_field('state')
+
+        raise 'Invalid fields, must provide nickname or server_id' if server_name.nil? and server_id.nil?
+        raise 'Invalid fields, must provide state' if state.nil?
+
+        init_server_connection()
+        if server_id
+          server = Server.find(:first) { |s| s.rs_id = server_id }
+          if server.nil?
+            raise "No server with id #{server_id}"
+          end
+          Maestro.log.info "Found server, '#{server.rs_id}'."
+        else
+          server = Server.find(:first) { |s| s.nickname =~ /#{server_name}/ }
+          if server.nil?
+            raise "No server matches #{server_name}"
+          end
+          Maestro.log.info "Found server, '#{server.nickname}'."
+        end
+
+        server.reload_current
+
+        write_output "Waiting until server #{server.rs_id} is #{state}\n"
+
+        server.wait_for_state(state)
+
+        write_output "Server is #{state}\n"
+      rescue Exception => e
+        trace = e.backtrace.join("\n")
+        Maestro.log.error("#{e.message}\n#{trace}")
+        set_error e.message
+      end
+
+      Maestro.log.info "***********************Completed RightScale.wait***************************"
     end
 
     def init_server_connection

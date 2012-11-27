@@ -56,7 +56,7 @@
         },
         "outputs":{
           "rightscale_server_id":{
-            "type":"int"
+            "type":"Integer"
           },
           "rightscale_ip_address":{
             "type":"String"
@@ -109,6 +109,68 @@
           "password":{
             "required":true,
             "type":"Password",
+            "value":""
+          },
+          "wait_until_stopped": {
+            "required":true,
+            "type":"Boolean",
+            "value":true
+          }
+        },
+        "outputs":{
+          "state":{
+            "type":"String"
+          }
+        },
+        "tool_name":"Cloud"
+      }
+    },
+    {
+      "name":"rightscale wait for server state",
+      "description":"Wait for a server defined in RightScale to be in a certain state",
+      "license":"Apache License 2.0",
+      "author":"Brett Porter",
+      "version":"1.0-SNAPSHOT",
+      "class":"MaestroDev::RightScaleWorker",
+      "type":"ruby",
+      "dependencies":[
+        {
+          "name":"rest_connection",
+          "version":"1.0.1.maestrodev",
+          "source":"http://rubygems.org/"
+        }
+      ],
+      "task":{
+        "command":"/rightscale/wait",
+        "inputs":{
+          "nickname":{
+            "required":false,
+            "type":"String",
+            "value":""
+          },
+          "server_id":{
+            "required":false,
+            "type":"Integer",
+            "value":""
+          },
+          "account_id":{
+            "required":true,
+            "type":"Integer",
+            "value":""
+          },
+          "username":{
+            "required":true,
+            "type":"String",
+            "value":""
+          },
+          "password":{
+            "required":true,
+            "type":"Password",
+            "value":""
+          },
+          "state": {
+            "required":true,
+            "type":"String",
             "value":""
           }
         },
