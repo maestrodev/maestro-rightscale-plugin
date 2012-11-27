@@ -110,13 +110,21 @@ module MaestroDev
           :azure_hack_on => true,
           :azure_hack_retry_count => 5,
           :azure_hack_sleep_seconds => 60,
-          :api_logging => false
+          :api_logging => false,
+          :log => self,
       }
       # Used to detect API access inside Server calls
       Ec2SshKeyInternal.reconnect(settings)
       Server.reconnect(settings)
     end
 
+    # Logging methods - TODO move into a utility class or the plugin parent?
+    def write(message)
+      write_output "#{message}"
+    end
 
+    def close()
+
+    end
   end
 end
