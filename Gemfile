@@ -1,18 +1,19 @@
-source :rubygems
-
-gem 'bundler', '>= 1.0.21'
-gem 'rake'
-gem 'zippy'
+source 'https://rubygems.org/'
 
 gem 'maestro_agent', '>= 1.2.0'
 
 #dependencies
 gem "rest_connection", "1.0.1.maestrodev"
 
+group :development do
+  gem 'rake', '~>0.9.2.2'
+  gem 'nokogiri'
+  gem 'git'
+  gem 'zippy'
+end
+
 group :test do
-  gem "mocha", "0.10.0"
   gem 'rspec'
-  gem 'rspec-core'
   gem 'rcov', '0.9.11'
   gem 'mocha', '0.10.0'
 end

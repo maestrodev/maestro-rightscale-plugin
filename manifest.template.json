@@ -15,7 +15,7 @@
       "description":"Start a server defined in RightScale",
       "license":"Apache License 2.0",
       "author":"Brett Porter",
-      "version":"1.0-SNAPSHOT",
+      "version":"updated at build time",
       "class":"MaestroDev::RightScaleWorker",
       "type":"ruby",
       "dependencies":[
@@ -73,7 +73,7 @@
       "description":"Stop a server defined in RightScale",
       "license":"Apache License 2.0",
       "author":"Brett Porter",
-      "version":"1.0-SNAPSHOT",
+      "version":"updated at build time",
       "class":"MaestroDev::RightScaleWorker",
       "type":"ruby",
       "dependencies":[
@@ -130,7 +130,7 @@
       "description":"Wait for a server defined in RightScale to be in a certain state",
       "license":"Apache License 2.0",
       "author":"Brett Porter",
-      "version":"1.0-SNAPSHOT",
+      "version":"updated at build time",
       "class":"MaestroDev::RightScaleWorker",
       "type":"ruby",
       "dependencies":[
