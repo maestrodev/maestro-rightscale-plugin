@@ -202,6 +202,7 @@ module MaestroDev
         return true if server.state == state
         sleep interval
       end
+      server = @client.servers(:id => server_id).show
       fail "Timed out waiting for server #{server.name} to reach state #{state}, is currently #{server.state}"
     end
 
