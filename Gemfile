@@ -14,6 +14,5 @@ end
 
 group :test do
   gem 'rspec'
-  gem 'rcov'
   gem 'mocha'
 end
