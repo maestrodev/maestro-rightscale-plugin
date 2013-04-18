@@ -102,7 +102,7 @@ module MaestroDev
       end
 
       init_server_connection()
-      if server_id
+      if server_id and server_id > 0
         server = @client.servers(:id => server_id).show
         if server.nil?
           set_error "No server with id #{server_id}"
@@ -152,7 +152,7 @@ module MaestroDev
       end
 
       init_server_connection()
-      if server_id
+      if server_id and server_id > 0
         server = @client.servers(:id => server_id).show
         if server.nil?
           set_error "No server with id #{server_id}"
