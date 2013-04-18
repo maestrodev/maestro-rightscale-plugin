@@ -67,7 +67,21 @@ module MaestroDev
       instance = instance_resource.show
       ip_address = instance.public_ip_addresses.first
       set_field('rightscale_ip_address', ip_address)
-      set_field('rightscale_private_ip_address', instance.private_ip_addresses.first)
+      private_ip_address = instance.private_ip_addresses.first
+      set_field('rightscale_private_ip_address', private_ip_address)
+
+      context_servers = read_output_value('rightscale_servers') || {}
+      context_servers[server_id] = {
+          :name => server.name,
+          :state => "operational",
+          :public_ip_address => ip_address,
+          :private_ip_address => private_ip_address,
+          :multi_cloud_image => instance.multi_cloud_image.show.name,
+          :server_template => instance.server_template.show.name,
+          :deployment => instance.deployment.show.name,
+          :resource_uid => instance.resource_uid
+      }
+      save_output_value('rightscale_servers', context_servers)
 
       write_output "Server up at #{ip_address}\n"
 
@@ -111,6 +125,9 @@ module MaestroDev
       write_output "Requested server to stop #{server_id}\n"
 
       wait_for_state("stopped", server_id) if get_field('wait_until_stopped')
+
+      context_servers = read_output_value('rightscale_servers') || {}
+      context_servers[server_id][:state] = @client.servers(:id => server_id).show.state if context_servers[server_id]
 
       write_output "Server stopped\n"
 
@@ -156,6 +173,9 @@ module MaestroDev
       write_output "Waiting until server #{server_id} is #{state}\n"
 
       wait_for_state(state, server_id)
+
+      context_servers = read_output_value('rightscale_servers') || {}
+      context_servers[server_id][:state] = state if context_servers[server_id]
 
       write_output "Server is #{state}\n"
 
