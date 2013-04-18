@@ -1,5 +1,12 @@
 require 'spec_helper'
 
+# Replace with valid credentials to integration tests below
+VALID_ACCOUNT_ID='1234'
+VALID_USERNAME='test@example.com'
+VALID_PASSWORD='qwerty'
+NICKNAME = 'RSB'
+#NICKNAME = 'Rackspace'
+
 describe MaestroDev::RightScaleWorker do
   before :all do
     @test_participant = MaestroDev::RightScaleWorker.new
@@ -8,7 +15,7 @@ describe MaestroDev::RightScaleWorker do
 
   it "should fail to start a server with wrong credentials" do
     wi = Ruote::Workitem.new({'fields' => {
-        'nickname' => 'RSB',
+        'nickname' => NICKNAME,
         'account_id' => '1234',
         'username' => 'test@example.com',
         'password' => 'qwerty',
@@ -18,57 +25,58 @@ describe MaestroDev::RightScaleWorker do
 
     @test_participant.start
 
-    wi.fields['__error__'].should eql('Invalid response HTTP code: 401: Permission denied')
+    wi.fields['__error__'].should eql('Invalid credentials provided: 401 Unauthorized')
   end
 
-  # Replace with valid credentials and enable to test
+  # enable to test
   xit "should start a server with valid credentials" do
     wi = Ruote::Workitem.new({'fields' => {
-        'nickname' => 'RSB',
-        #'account_id' => '1234',
-        #'username' => 'test@example.com',
-        #'password' => 'qwerty',
+        'nickname' => NICKNAME,
+        'account_id' => VALID_ACCOUNT_ID,
+        'username' => VALID_USERNAME,
+        'password' => VALID_PASSWORD,
+        'api_url' => 'https://us-3.rightscale.com'
     }})
 
     @test_participant.expects(:workitem => wi.to_h).at_least_once
 
     @test_participant.start
 
-    wi.fields['__error__'].should eql('')
+    wi.fields['__error__'].should be_nil
     wi.fields['rightscale_ip_address'].should_not be_nil
     wi.fields['rightscale_server_id'].should_not be_nil
   end
 
-  # Replace with valid credentials and enable to test
+  # enable to test
   xit "should stop a server with valid credentials" do
     wi = Ruote::Workitem.new({'fields' => {
-        'nickname' => 'RSB',
-        #'account_id' => '1234',
-        #'username' => 'test@example.com',
-        #'password' => 'qwerty',
+        'nickname' => NICKNAME,
+        'account_id' => VALID_ACCOUNT_ID,
+        'username' => VALID_USERNAME,
+        'password' => VALID_PASSWORD,
     }})
 
     @test_participant.expects(:workitem => wi.to_h).at_least_once
 
     @test_participant.stop
 
-    wi.fields['__error__'].should eql('')
+    wi.fields['__error__'].should be_nil
   end
 
-  # Replace with valid credentials and enable to test
+  # enable to test
   xit "should stop a server using existing field item" do
     wi = Ruote::Workitem.new({'fields' => {
-        #'rightscale_server_id' => '1234',
-        #'account_id' => '1234',
-        #'username' => 'test@example.com',
-        #'password' => 'qwerty',
+        'rightscale_server_id' => '1234',
+        'account_id' => VALID_ACCOUNT_ID,
+        'username' => VALID_USERNAME,
+        'password' => VALID_PASSWORD,
     }})
 
     @test_participant.expects(:workitem => wi.to_h).at_least_once
 
     @test_participant.stop
 
-    wi.fields['__error__'].should eql('')
+    wi.fields['__error__'].should be_nil
   end
 
   it "should fail to validate if no nickname and no server_id" do

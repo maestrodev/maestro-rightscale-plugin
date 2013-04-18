@@ -3,7 +3,7 @@ source 'https://rubygems.org/'
 gem 'maestro_agent', '>= 1.2.0'
 
 #dependencies
-gem "rest_connection", "1.0.1.maestrodev"
+gem "right_api_client"
 
 group :development do
   gem 'rake', '>=0.9.2.2'

@@ -1,5 +1,5 @@
 require 'maestro_agent'
-require 'rest_connection'
+require 'right_api_client'
 require 'rubygems'
 
 module MaestroDev
@@ -32,31 +32,44 @@ module MaestroDev
 
       begin
         init_server_connection()
-      rescue RestConnection::Errors::Unauthorized => e
-        set_error e.message
+      rescue RestClient::Unauthorized => e
+        set_error "Invalid credentials provided: #{e.message}"
         return
       end
 
-      server = Server.find(:first) { |s| s.nickname =~ /#{server_name}/ }
+      server = @client.servers.index(:filter => ["name==#{server_name}"]).first
       if server.nil?
         set_error "No server matches #{server_name}"
         return
       end
 
-      Maestro.log.info "Found server, '#{server.nickname}'."
+      Maestro.log.info "Found server, '#{server.name}'."
 
-      server.reload_current
-      server.start
+      begin
+        instance_resource = server.launch
+      rescue RightApi::Exceptions::ApiException => e
+        # TODO: a new version with ApiError can check e.response.code
+        if e.message =~ /422/
+          set_error e.message
+          return
+        else
+          raise e
+        end
+      end
 
-      write_output "Requested server to start #{server.rs_id}\n"
-      set_field('rightscale_server_id', server.rs_id)
+      server_id = File.basename server.href
 
-      server.wait_for_operational_with_dns
+      write_output "Requested server to start #{server_id}\n"
+      set_field('rightscale_server_id', server_id)
 
-      set_field('rightscale_ip_address', server.ip_address)
-      set_field('rightscale_private_ip_address', server.private_ip_address)
+      wait_for_state('operational', server_id)
 
-      write_output "Server up at #{server.ip_address}\n"
+      instance = instance_resource.show
+      ip_address = instance.public_ip_addresses.first
+      set_field('rightscale_ip_address', ip_address)
+      set_field('rightscale_private_ip_address', instance.private_ip_addresses.first)
+
+      write_output "Server up at #{ip_address}\n"
 
       Maestro.log.info "***********************Completed RightScale.start***************************"
     end
@@ -76,27 +89,28 @@ module MaestroDev
 
       init_server_connection()
       if server_id
-        server = Server.find(:first) { |s| s.rs_id = server_id }
+        server = @client.servers(:id => server_id).show
         if server.nil?
           set_error "No server with id #{server_id}"
           return
         end
-        Maestro.log.info "Found server, '#{server.rs_id}'."
+        Maestro.log.info "Found server, '#{server_id}'."
       else
-        server = Server.find(:first) { |s| s.nickname =~ /#{server_name}/ }
+        server = @client.servers.index(:filter => ["name==#{server_name}"]).first
         if server.nil?
           set_error "No server matches #{server_name}"
           return
         end
-        Maestro.log.info "Found server, '#{server.nickname}'."
+        Maestro.log.info "Found server, '#{server.name}'."
       end
 
-      server.reload_current
-      server.stop
+      server_id = File.basename server.href
 
-      write_output "Requested server to stop #{server.rs_id}\n"
+      server.current_instance.terminate
 
-      server.wait_for_state("stopped") if get_field('wait_until_stopped')
+      write_output "Requested server to stop #{server_id}\n"
+
+      wait_for_state("stopped", server_id) if get_field('wait_until_stopped')
 
       write_output "Server stopped\n"
 
@@ -106,6 +120,7 @@ module MaestroDev
     def wait
       Maestro.log.info "Starting RightScale Worker"
 
+      # TODO: validate states
       state = get_field('state')
       server_name = get_field('nickname')
       server_id = get_field('server_id') || get_field('rightscale_server_id')
@@ -121,26 +136,26 @@ module MaestroDev
 
       init_server_connection()
       if server_id
-        server = Server.find(:first) { |s| s.rs_id = server_id }
+        server = @client.servers(:id => server_id).show
         if server.nil?
           set_error "No server with id #{server_id}"
           return
         end
-        Maestro.log.info "Found server, '#{server.rs_id}'."
+        Maestro.log.info "Found server, '#{server_id}'."
       else
-        server = Server.find(:first) { |s| s.nickname =~ /#{server_name}/ }
+        server = @client.servers.index(:filter => ["name==#{server_name}"]).first
         if server.nil?
           set_error "No server matches #{server_name}"
           return
         end
-        Maestro.log.info "Found server, '#{server.nickname}'."
+        Maestro.log.info "Found server, '#{server.name}'."
       end
 
-      server.reload_current
+      server_id = File.basename server.href
 
-      write_output "Waiting until server #{server.rs_id} is #{state}\n"
+      write_output "Waiting until server #{server_id} is #{state}\n"
 
-      server.wait_for_state(state)
+      wait_for_state(state, server_id)
 
       write_output "Server is #{state}\n"
 
@@ -151,34 +166,33 @@ module MaestroDev
       account_id = get_field('account_id')
       username = get_field('username')
       password = get_field('password')
+      api_version = get_field('api_version')
+      api_url = get_field('api_url')
 
-      api_version = get_field('api_version') || "1.0"
+      @client = RightApi::Client.new(:email => username, :password => password, :account_id => account_id,
+                                     :api_url => api_url, :api_version => api_version)
 
-      settings = {
-          :user => username,
-          :pass => password,
-          :api_url => "https://my.rightscale.com/api/acct/#{account_id}",
-          :common_headers => {
-              'X_API_VERSION' => "#{api_version}"
-          },
-          :azure_hack_on => true,
-          :azure_hack_retry_count => 5,
-          :azure_hack_sleep_seconds => 60,
-          :api_logging => false,
-          :log => self,
-      }
-      # Used to detect API access inside Server calls
-      Ec2SshKeyInternal.reconnect(settings)
-      Server.reconnect(settings)
+      @client.log LogWrapper.new
     end
 
-    # Logging methods - TODO move into a utility class or the plugin parent?
-    def write(message)
-      write_output "#{message}"
+    def wait_for_state(state, server_id, timeout=600, interval=10)
+      (0..timeout).step(interval) do |i|
+        server = @client.servers(:id => server_id).show
+        Maestro.log.debug "Server state is #{server.state}, waiting for #{state} (#{i}/#{timeout})"
+        return true if server.state == state
+        sleep interval
+      end
+      fail "Timed out waiting for server #{server.name} to reach state #{state}, is currently #{server.state}"
     end
 
     def close()
 
+    end
+  end
+
+  class LogWrapper
+    def << s
+      Maestro.log.debug s
     end
   end
 end

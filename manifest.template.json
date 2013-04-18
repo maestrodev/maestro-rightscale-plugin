@@ -5,7 +5,8 @@
       "options":{
         "account_id":"Integer",
         "username":"String",
-        "password":"Password"
+        "password":"Password",
+        "api_url":"URL"
       }
     }
   ],
@@ -51,6 +52,11 @@
           "password":{
             "required":true,
             "type":"Password",
+            "value":""
+          },
+          "api_url":{
+            "required":false,
+            "type":"URL",
             "value":""
           }
         },
@@ -111,6 +117,11 @@
             "type":"Password",
             "value":""
           },
+          "api_url":{
+            "required":false,
+            "type":"URL",
+            "value":""
+          },
           "wait_until_stopped": {
             "required":true,
             "type":"Boolean",
@@ -166,6 +177,11 @@
           "password":{
             "required":true,
             "type":"Password",
+            "value":""
+          },
+          "api_url":{
+            "required":false,
+            "type":"URL",
             "value":""
           },
           "state": {
