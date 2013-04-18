@@ -5,32 +5,44 @@ require 'rubygems'
 module MaestroDev
   class RightScaleWorker < Maestro::MaestroWorker
 
-    def validate_fields
-      set_error('')
-
+    def validate_fields(server_id)
+      missing_fields = []
       for f in %w(account_id username password)
-        raise "Invalid fields, must provide #{f}" if get_field(f).nil?
+        missing_fields << f if get_field(f).nil?
       end
+
+      fail "Invalid fields, must provide #{missing_fields}" unless missing_fields.empty?
+
+      fail 'Invalid fields, must provide nickname or server_id' if get_field('nickname').nil? and server_id.nil?
     end
 
     def start
       Maestro.log.info "Starting RightScale Worker"
-      validate_fields
 
       server_name = get_field('nickname')
+      # TODO: should be used, or make nickname required?
       server_id = get_field('server_id')
 
-      if server_name.nil? and server_id.nil?
-        set_error('Invalid fields, must provide nickname or server_id')
+      begin
+        validate_fields(server_id)
+      rescue => e
+        set_error e.message
         return
       end
 
-      init_server_connection()
+      begin
+        init_server_connection()
+      rescue RestConnection::Errors::Unauthorized => e
+        set_error e.message
+        return
+      end
+
       server = Server.find(:first) { |s| s.nickname =~ /#{server_name}/ }
       if server.nil?
         set_error "No server matches #{server_name}"
         return
       end
+
       Maestro.log.info "Found server, '#{server.nickname}'."
 
       server.reload_current
@@ -51,13 +63,14 @@ module MaestroDev
 
     def stop
       Maestro.log.info "Starting RightScale Worker"
-      validate_fields
 
       server_name = get_field('nickname')
       server_id = get_field('server_id') || get_field('rightscale_server_id')
 
-      if server_name.nil? and server_id.nil?
-        set_error('Invalid fields, must provide nickname or server_id')
+      begin
+        validate_fields(server_id)
+      rescue => e
+        set_error e.message
         return
       end
 
@@ -92,19 +105,17 @@ module MaestroDev
 
     def wait
       Maestro.log.info "Starting RightScale Worker"
-      validate_fields
 
+      state = get_field('state')
       server_name = get_field('nickname')
       server_id = get_field('server_id') || get_field('rightscale_server_id')
 
-      state = get_field('state')
+      begin
+        validate_fields(server_id)
 
-      if server_name.nil? and server_id.nil?
-        set_error('Invalid fields, must provide nickname or server_id')
-        return
-      end
-      if state.nil?
-        set_error 'Invalid fields, must provide state'
+        fail 'Invalid fields, must provide state' if state.nil?
+      rescue => e
+        set_error e.message
         return
       end
 
