@@ -124,7 +124,7 @@ module MaestroDev
 
       write_output "Requested server to stop #{server_id}\n"
 
-      wait_for_state("stopped", server_id) if get_field('wait_until_stopped')
+      wait_for_state("inactive", server_id) if get_field('wait_until_stopped')
 
       context_servers = read_output_value('rightscale_servers') || {}
       context_servers[server_id][:state] = @client.servers(:id => server_id).show.state if context_servers[server_id]
