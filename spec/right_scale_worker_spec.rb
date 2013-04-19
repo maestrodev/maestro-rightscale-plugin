@@ -8,7 +8,8 @@ NICKNAME = 'RSB'
 #NICKNAME = 'Rackspace'
 
 describe MaestroDev::RightScaleWorker do
-  before :all do
+
+  before :each do
     @test_participant = MaestroDev::RightScaleWorker.new
     @test_participant.stubs(:write_output)
   end
@@ -103,8 +104,9 @@ describe MaestroDev::RightScaleWorker do
 
     @test_participant.start
 
-    wi.fields['__error__'].should eql('Invalid fields, must provide account_id')
+    wi.fields['__error__'].should eql('Invalid fields, must provide nickname or server_id, account_id')
   end
+
   it "should fail to validate if no username" do
     wi = Ruote::Workitem.new({'fields' => {
         'account_id' => '1234',
@@ -115,8 +117,9 @@ describe MaestroDev::RightScaleWorker do
 
     @test_participant.start
 
-    wi.fields['__error__'].should eql('Invalid fields, must provide username')
+    wi.fields['__error__'].should eql('Invalid fields, must provide nickname or server_id, username')
   end
+
   it "should fail to validate if no password" do
     wi = Ruote::Workitem.new({'fields' => {
         'account_id' => '1234',
@@ -127,6 +130,6 @@ describe MaestroDev::RightScaleWorker do
 
     @test_participant.start
 
-    wi.fields['__error__'].should eql('Invalid fields, must provide password')
+    wi.fields['__error__'].should eql('Invalid fields, must provide nickname or server_id, password')
   end
 end

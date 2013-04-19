@@ -7,13 +7,14 @@ module MaestroDev
 
     def validate_fields(server_id)
       missing_fields = []
+      if get_field('nickname').nil? and server_id.nil?
+        missing_fields << 'nickname or server_id'
+      end
       for f in %w(account_id username password)
         missing_fields << f if get_field(f).nil?
       end
 
-      fail "Invalid fields, must provide #{missing_fields}" unless missing_fields.empty?
-
-      fail 'Invalid fields, must provide nickname or server_id' if get_field('nickname').nil? and server_id.nil?
+      set_error("Invalid fields, must provide #{missing_fields.join(", ")}") unless missing_fields.empty?
     end
 
     def start
@@ -23,12 +24,8 @@ module MaestroDev
       # TODO: should be used, or make nickname required?
       server_id = get_field('server_id')
 
-      begin
-        validate_fields(server_id)
-      rescue => e
-        set_error e.message
-        return
-      end
+      validate_fields(server_id)
+      return if error?
 
       begin
         init_server_connection()
@@ -63,6 +60,7 @@ module MaestroDev
       set_field('rightscale_server_id', server_id)
 
       wait_for_state('operational', server_id)
+      return if error?
 
       instance = instance_resource.show
       ip_address = instance.public_ip_addresses.first
@@ -94,12 +92,8 @@ module MaestroDev
       server_name = get_field('nickname')
       server_id = get_field('server_id') || get_field('rightscale_server_id')
 
-      begin
-        validate_fields(server_id)
-      rescue => e
-        set_error e.message
-        return
-      end
+      validate_fields(server_id)
+      return if error?
 
       init_server_connection()
       if server_id and server_id > 0
@@ -125,6 +119,7 @@ module MaestroDev
       write_output "Requested server to stop #{server_id}\n"
 
       wait_for_state("inactive", server_id) if get_field('wait_until_stopped')
+      return if error?
 
       context_servers = read_output_value('rightscale_servers') || {}
       context_servers[server_id][:state] = @client.servers(:id => server_id).show.state if context_servers[server_id]
@@ -142,14 +137,9 @@ module MaestroDev
       server_name = get_field('nickname')
       server_id = get_field('server_id') || get_field('rightscale_server_id')
 
-      begin
-        validate_fields(server_id)
-
-        fail 'Invalid fields, must provide state' if state.nil?
-      rescue => e
-        set_error e.message
-        return
-      end
+      validate_fields(server_id)
+      set_error('Invalid fields, must provide state') if !error? and state.nil?
+      return if error?
 
       init_server_connection()
       if server_id and server_id > 0
@@ -173,6 +163,7 @@ module MaestroDev
       write_output "Waiting until server #{server_id} is #{state}\n"
 
       wait_for_state(state, server_id)
+      return if error?
 
       context_servers = read_output_value('rightscale_servers') || {}
       context_servers[server_id][:state] = state if context_servers[server_id]
@@ -203,7 +194,7 @@ module MaestroDev
         sleep interval
       end
       server = @client.servers(:id => server_id).show
-      fail "Timed out waiting for server #{server.name} to reach state #{state}, is currently #{server.state}"
+      set_error "Timed out waiting for server #{server.name} to reach state #{state}, is currently #{server.state}"
     end
 
     def close()
