@@ -26,32 +26,38 @@
           "nickname":{
             "required":false,
             "type":"String",
-            "value":""
+            "value":null,
+            "description":"Server nickname, ignored if server_id is set"
           },
           "server_id":{
             "required":false,
             "type":"Integer",
-            "value":""
+            "value":null,
+            "description":"Server id. If not set then nickname is used"
           },
           "account_id":{
             "required":true,
             "type":"Integer",
-            "value":""
+            "value":null,
+            "description":"RightScale account id"
           },
           "username":{
             "required":true,
             "type":"String",
-            "value":""
+            "value":null,
+            "description":"RightScale username"
           },
           "password":{
             "required":true,
             "type":"Password",
-            "value":""
+            "value":null,
+            "description":"RightScale password"
           },
           "api_url":{
             "required":false,
             "type":"Url",
-            "value":""
+            "value":"https://my.rightscale.com",
+            "description":"RightScale API endpoint URL"
           }
         },
         "outputs":{
@@ -84,37 +90,44 @@
           "nickname":{
             "required":false,
             "type":"String",
-            "value":""
+            "value":null,
+            "description":"Server nickname, ignored if server_id is set"
           },
           "server_id":{
             "required":false,
             "type":"Integer",
-            "value":""
+            "value":null,
+            "description":"Server id. If not set then nickname is used"
           },
           "account_id":{
             "required":true,
             "type":"Integer",
-            "value":""
+            "value":null,
+            "description":"RightScale account id"
           },
           "username":{
             "required":true,
             "type":"String",
-            "value":""
+            "value":null,
+            "description":"RightScale username"
           },
           "password":{
             "required":true,
             "type":"Password",
-            "value":""
+            "value":null,
+            "description":"RightScale password"
           },
           "api_url":{
             "required":false,
             "type":"Url",
-            "value":""
+            "value":"https://my.rightscale.com",
+            "description":"RightScale API endpoint URL"
           },
           "wait_until_stopped": {
-            "required":true,
+            "required":false,
             "type":"Boolean",
-            "value":true
+            "value":true,
+            "description":"Make the composition wait until the server is stopped"
           }
         },
         "outputs":{
@@ -141,37 +154,44 @@
           "nickname":{
             "required":false,
             "type":"String",
-            "value":""
+            "value":null,
+            "description":"Server nickname, ignored if server_id is set"
           },
           "server_id":{
             "required":false,
             "type":"Integer",
-            "value":""
+            "value":null,
+            "description":"Server id. If not set then nickname is used"
           },
           "account_id":{
             "required":true,
             "type":"Integer",
-            "value":""
+            "value":null,
+            "description":"RightScale account id"
           },
           "username":{
             "required":true,
             "type":"String",
-            "value":""
+            "value":null,
+            "description":"RightScale username"
           },
           "password":{
             "required":true,
             "type":"Password",
-            "value":""
+            "value":null,
+            "description":"RightScale password"
           },
           "api_url":{
             "required":false,
             "type":"Url",
-            "value":""
+            "value":"https://my.rightscale.com",
+            "description":"RightScale API endpoint URL"
           },
           "state": {
             "required":true,
             "type":"String",
-            "value":""
+            "value":"operational",
+            "description":"Make the composition wait until the server is in this state (pending, booting, stopped, terminated, operational,...)"
           }
         },
         "outputs":{},
