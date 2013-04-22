@@ -24,7 +24,7 @@ describe MaestroDev::RightScaleWorker do
   describe 'start' do
 
     def start(fields)
-      wi = Ruote::Workitem.new({'fields' => default_fields.merge('nickname' => NICKNAME)})
+      wi = Ruote::Workitem.new({'fields' => fields})
       participant.expects(:workitem => wi.to_h).at_least_once
       participant.start
     end
