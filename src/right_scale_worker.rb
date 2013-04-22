@@ -198,10 +198,11 @@ module MaestroDev
 
         # print in the output if server changed state, and reset timeout
         if server.state != last_state
+          last_state = server.state
           i = 0
           msg = "Server state is now #{server.state}, waiting for #{state}"
           write_output "#{msg}\n"
-          Maestro.log.debug msg
+          Maestro.log.info msg
         else
           Maestro.log.debug "Server state is #{server.state}, waiting for #{state} (#{i}/#{timeout})"
         end
