@@ -1,6 +1,6 @@
 source 'https://rubygems.org/'
 
-gem 'maestro_agent', '>= 1.2.0'
+gem 'maestro_agent', '>= 1.5.0'
 
 #dependencies
 gem "right_api_client"
