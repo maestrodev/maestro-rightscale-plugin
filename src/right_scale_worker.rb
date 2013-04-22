@@ -186,15 +186,33 @@ module MaestroDev
       @client.log LogWrapper.new
     end
 
+    # wait for server to be in a state.
+    # Timeout after 600s without changing state, check every 10s
     def wait_for_state(state, server_id, timeout=600, interval=10)
-      (0..timeout).step(interval) do |i|
+      server = nil
+      last_state = nil
+      i = 0
+      while i <= timeout do
         server = @client.servers(:id => server_id).show
-        Maestro.log.debug "Server state is #{server.state}, waiting for #{state} (#{i}/#{timeout})"
         return true if server.state == state
+
+        # print in the output if server changed state, and reset timeout
+        if server.state != last_state
+          i = 0
+          msg = "Server state is now #{server.state}, waiting for #{state}"
+          write_output "#{msg}\n"
+          Maestro.log.debug msg
+        else
+          Maestro.log.debug "Server state is #{server.state}, waiting for #{state} (#{i}/#{timeout})"
+        end
+
         sleep interval
+        i += interval
       end
-      server = @client.servers(:id => server_id).show
-      set_error "Timed out waiting for server #{server.name} to reach state #{state}, is currently #{server.state}"
+
+      msg = "Timed out after #{timeout}s waiting for server #{server.name} to reach state #{state}, is currently #{server.state}"
+      Maestro.log.info msg
+      set_error msg
     end
 
     def close()
