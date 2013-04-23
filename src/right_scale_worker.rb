@@ -140,10 +140,20 @@ module MaestroDev
       else
         servers = @client.servers.index(:filter => ["name==#{server_name}"])
       end
-      servers.each {|s| stop_server(s)}
+      stopped_servers = []
+      servers.each do |s|
+        begin
+          stop_server(s)
+          stopped_servers << s
+        rescue RightApi::Exceptions::ApiException => e
+          msg = "Error stopping server [#{get_server_id(s)}] #{s.name}: #{e.message}. Ignoring"
+          Maestro.log.error msg
+          write_output "#{msg}\n"
+        end
+      end
 
       if get_field('wait_until_stopped')
-        servers.each do |server|
+        stopped_servers.each do |server|
           server_id = get_server_id(server)
           msg = "Waiting for server to stop [#{server_id}] #{server.name}"
           write_output "#{msg}\n"
@@ -154,7 +164,13 @@ module MaestroDev
 
       context_servers = read_output_value('rightscale_servers') || {}
       servers.each do |server|
-        context_servers[server.id][:state] = server.state if context_servers[server_id]
+        next unless context_servers[get_server_id(server)]
+        begin
+          state = @client.servers(:id => get_server_id(server)).show.state
+          context_servers[get_server_id(server)][:state] = state
+        rescue RightApi::Exceptions::ApiException => e
+          Maestro.log.info "Unable to get server[#{get_server_id(server)}] #{server.name}: #{e.message}. Ignoring\n"
+        end
       end
 
       write_output "Servers stopped\n"

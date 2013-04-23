@@ -75,11 +75,12 @@ describe MaestroDev::RightScaleWorker do
   describe 'stop' do
 
     let(:instance) { mock('instance') }
-    let(:server) { mock('server', :current_instance => instance, :name => 'myserver', :href => "/api/servers/1") }
+    let(:server) { mock('server', :current_instance => instance, :name => 'myserver') }
     let(:servers) { mock('servers') }
 
     before(:each) do
       participant.stubs(:init_server_connection)
+      server.stubs(:href => "/api/servers/1")
       participant.client = stub('client', :servers => servers)
     end
 
