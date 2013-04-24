@@ -262,6 +262,72 @@
         "icon": "rightscale.png",
         "tool_name":"Cloud"
       }
+    },
+    {
+      "name":"rightscale execute script",
+      "description":"Execute a RightScript",
+      "license":"Apache License 2.0",
+      "author":"Brett Porter",
+      "version":"updated at build time",
+      "class":"MaestroDev::RightScaleWorker",
+      "type":"ruby",
+      "dependencies":[],
+      "task":{
+        "command":"/rightscale/execute",
+        "inputs":{
+          "nickname":{
+            "required":false,
+            "type":"String",
+            "value":null,
+            "description":"Server nickname, ignored if server_id is set"
+          },
+          "server_id":{
+            "required":false,
+            "type":"Integer",
+            "value":null,
+            "description":"Server id. If not set then nickname is used"
+          },
+          "account_id":{
+            "required":true,
+            "type":"Integer",
+            "value":null,
+            "description":"RightScale account id"
+          },
+          "username":{
+            "required":true,
+            "type":"String",
+            "value":null,
+            "description":"RightScale username"
+          },
+          "password":{
+            "required":true,
+            "type":"Password",
+            "value":null,
+            "description":"RightScale password"
+          },
+          "api_url":{
+            "required":false,
+            "type":"Url",
+            "value":"https://my.rightscale.com",
+            "description":"RightScale API endpoint URL"
+          },
+          "recipe": {
+            "required":true,
+            "type":"String",
+            "value":"",
+            "description":"The RightScript to run (currently supports recipes only)"
+          },
+          "wait_for_completion": {
+            "required":false,
+            "type":"Boolean",
+            "value":true,
+            "description":"Make the composition wait until the task is complete"
+          }
+        },
+        "outputs":{},
+        "icon": "rightscale.png",
+        "tool_name":"Cloud"
+      }
     }
   ]
 }
