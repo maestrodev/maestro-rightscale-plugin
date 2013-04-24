@@ -76,6 +76,70 @@
       }
     },
     {
+      "name":"rightscale get server",
+      "description":"Get a server defined in RightScale",
+      "license":"Apache License 2.0",
+      "author":"Brett Porter",
+      "version":"updated at build time",
+      "class":"MaestroDev::RightScaleWorker",
+      "type":"ruby",
+      "dependencies":[],
+      "task":{
+        "command":"/rightscale/get_server",
+        "inputs":{
+          "nickname":{
+            "required":false,
+            "type":"String",
+            "value":null,
+            "description":"Server nickname, ignored if server_id is set"
+          },
+          "server_id":{
+            "required":false,
+            "type":"Integer",
+            "value":null,
+            "description":"Server id. If not set then nickname is used"
+          },
+          "account_id":{
+            "required":true,
+            "type":"Integer",
+            "value":null,
+            "description":"RightScale account id"
+          },
+          "username":{
+            "required":true,
+            "type":"String",
+            "value":null,
+            "description":"RightScale username"
+          },
+          "password":{
+            "required":true,
+            "type":"Password",
+            "value":null,
+            "description":"RightScale password"
+          },
+          "api_url":{
+            "required":false,
+            "type":"Url",
+            "value":"https://my.rightscale.com",
+            "description":"RightScale API endpoint URL"
+          }
+        },
+        "outputs":{
+          "rightscale_server_id":{
+            "type":"Integer"
+          },
+          "rightscale_ip_address":{
+            "type":"String"
+          },
+          "rightscale_private_ip_address":{
+            "type":"String"
+          }
+        },
+        "icon": "rightscale.png",
+        "tool_name":"Cloud"
+      }
+    },
+    {
       "name":"rightscale stop server",
       "description":"Stop a server defined in RightScale",
       "license":"Apache License 2.0",

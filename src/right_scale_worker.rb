@@ -1,6 +1,7 @@
 require 'maestro_agent'
 require 'right_api_client'
 require 'rubygems'
+require 'pp'
 
 module MaestroDev
   class RightScaleWorker < Maestro::MaestroWorker
@@ -227,6 +228,76 @@ module MaestroDev
       write_output "Server is #{state}\n"
 
       Maestro.log.info "***********************Completed RightScale.wait***************************"
+    end
+
+    def get_server
+      Maestro.log.info "Retrieving RightScale server information into the Composition"
+
+      # TODO: much duplication with start, but refactor after other changes for deployments land
+
+      server_name = get_field('nickname')
+      # TODO: should be used, or make nickname required?
+      server_id = get_field('server_id')
+
+      validate_fields(server_id)
+      return if error?
+
+      begin
+        init_server_connection()
+      rescue RestClient::Unauthorized => e
+        set_error "Invalid credentials provided: #{e.message}"
+        return
+      end
+
+      server = @client.servers.index(:filter => ["name==#{server_name}"]).first
+      if server.nil?
+        set_error "No server matches #{server_name}"
+        return
+      end
+
+      Maestro.log.info "Found server, '#{server.name}'."
+
+      server_id = get_server_id(server)
+
+      set_field('rightscale_server_id', server_id) # deprecated
+      set_field("#{provider}_ids", (get_field("#{provider}_ids") || []) << server_id)
+      set_field("cloud_ids", (get_field("cloud_ids") || []) << server_id)
+
+      context_server = {
+          :name => server.name,
+          :state => server.state,
+      }
+      if server.respond_to? :current_instance
+        instance = server.current_instance.show
+        ip_address = instance.public_ip_addresses.first
+        private_ip_address = instance.private_ip_addresses.first
+
+        # save some values in the workitem so they are accessible for deprovision and other tasks
+        # using same naming as the fog plugin
+        set_field('rightscale_ip_address', ip_address) # deprecated
+        set_field('rightscale_private_ip_address', private_ip_address) # deprecated
+
+        set_field("#{provider}_private_ips", (get_field("#{provider}_private_ips") || []) << private_ip_address)
+        set_field("cloud_private_ips", (get_field("cloud_private_ips") || []) << private_ip_address)
+        set_field("#{provider}_ips", (get_field("#{provider}_ips") || []) << ip_address)
+        set_field("cloud_ips", (get_field("cloud_ips") || []) << ip_address)
+        context_server = {
+            :public_ip_address => ip_address,
+            :private_ip_address => private_ip_address,
+            :multi_cloud_image => instance.multi_cloud_image.show.name,
+            :server_template => instance.server_template.show.name,
+            :deployment => instance.deployment.show.name,
+            :resource_uid => instance.resource_uid
+        }.merge context_server
+      end
+
+      write_output "Server information: #{PP.pp context_server, out = ''}\n"
+
+      context_servers = read_output_value('rightscale_servers') || {}
+      context_servers[server_id] = context_server
+      save_output_value('rightscale_servers', context_servers)
+
+      Maestro.log.info "***********************Completed RightScale.get_server***************************"
     end
 
     def init_server_connection
