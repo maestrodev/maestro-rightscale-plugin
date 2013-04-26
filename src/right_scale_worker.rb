@@ -1,94 +1,183 @@
 require 'maestro_agent'
-require 'right_api_client'
 require 'rubygems'
+require File.expand_path('../rightscale_api_helper', __FILE__)
 
 module MaestroDev
   class RightScaleWorker < Maestro::MaestroWorker
 
-    attr_accessor :client
-
-    def provider
-      'rightscale'
+    # FIXME - convert everything over to allowing RightScale Refresh Tokens instead of username/password
+    def validate_base_fields(missing_fields)
+      if get_field('account_id').nil?
+        missing_fields << 'account_id'
+      end
+      if get_field('refresh_token').nil? && get_field('username').nil? && get_field('password').nil?
+        # missing everything, we'll mark all the fields
+        missing_fields << '(username and password) or refresh_token'
+      elsif get_field('refresh_token').nil?
+        # if not refresh token, but either username/password we'll specify which one
+        if get_field('username').nil?
+          missing_fields << 'username'
+        elsif
+          missing_fields << 'password'
+        end
+      end
     end
 
-    def validate_fields(server_id)
+    def validate_server_fields
       missing_fields = []
-      if get_field('nickname').nil? and (server_id.nil? or server_id.empty?)
-        missing_fields << 'nickname or server_id'
+      if get_field('server_id').nil? and ((get_field('nickname').nil? or (get_field('deployment_id').nil? and get_field('deployment_name').nil?)))
+        missing_fields << '(nickname and deployment_id) or (nickname and deployment_name) or server_id'
       end
-      for f in %w(account_id username password)
-        missing_fields << f if get_field(f).nil?
-      end
+      validate_base_fields(missing_fields)
 
       set_error("Invalid fields, must provide #{missing_fields.join(", ")}") unless missing_fields.empty?
+    end
+
+    def validate_wait_fields
+      missing_fields = []
+      if get_field('server_id').nil? and ((get_field('nickname').nil? or (get_field('deployment_id').nil? and get_field('deployment_name').nil?)))
+        missing_fields << '(nickname and deployment_id) or (nickname and deployment_name) or server_id'
+      end
+      if get_field('state').nil?
+        missing_fields << 'state'
+      end
+      validate_base_fields(missing_fields)
+
+      set_error("Invalid fields, must provide #{missing_fields.join(", ")}") unless missing_fields.empty?
+    end
+
+    def validate_deployment_fields
+      missing_fields = []
+      if get_field('deployment_id').nil? and get_field('deployment_name').nil?
+        missing_fields << 'deployment'
+      end
+      validate_base_fields(missing_fields)
+
+      set_error("Invalid fields, must provide #{missing_fields.join(", ")}") unless missing_fields.empty?
+    end
+
+    # set a wrapper that writes output to maestro
+    class MaestroLogWrapper
+      @worker
+      def initialize(worker)
+        @worker = worker
+      end
+      def << m
+        Maestro.log.debug m
+        @worker.write_output "DEBUG: #{m}\n"
+      end
+      def error(m)
+        Maestro.log.error m
+        @worker.write_output "ERROR: #{m}\n"
+      end
+      def warn(m)
+        Maestro.log.warn m
+        @worker.write_output "WARN: #{m}\n"
+      end
+      def info(m)
+        Maestro.log.info m
+        @worker.write_output "INFO: #{m}\n"
+      end
+      def debug(m)
+        Maestro.log.debug m
+        @worker.write_output "DEBUG: #{m}\n"
+      end
+      def level(l)
+        case l
+        when Logger::ERROR
+          Maestro.log_level=:error
+        when Logger::WARN
+          Maestro.log_level=:warn
+        when Logger::INFO
+          Maestro.log_level=:info
+        when Logger::DEBUG
+          Maestro.log_level=:debug
+        end
+      end
+    end
+
+    def get_client()
+      account_id = get_field('account_id')
+      username = get_field('username')
+      password = get_field('password')
+      api_url = get_field('api_url')
+      refresh_token = get_field('refresh_token')
+      oauth_url = get_field('oauth_url')
+
+      @log_wrapper = MaestroLogWrapper.new(self)
+      
+      client = RightScaleApiHelper.new(
+          :account_id => account_id,
+          :username => username,
+          :password => password,
+          :api_url => api_url,
+          :oauth_url => oauth_url,
+          :refresh_token => refresh_token,
+          :logger => @log_wrapper
+      )
+
+      return client
     end
 
     def start
       Maestro.log.info "Starting RightScale Worker"
 
-      server_name = get_field('nickname')
-      # TODO: should be used, or make nickname required?
-      server_id = get_field('server_id')
-
-      validate_fields(server_id)
+      # make sure we have all the necessary fields
+      validate_server_fields()
       return if error?
 
-      begin
-        init_server_connection()
-      rescue RestClient::Unauthorized => e
-        set_error "Invalid credentials provided: #{e.message}"
-        return
-      end
+      client = get_client()
 
-      server = @client.servers.index(:filter => ["name==#{server_name}"]).first
-      if server.nil?
-        set_error "No server matches #{server_name}"
-        return
-      end
+      # either server_id is needed, or server_name + deployment is needed
+      server_id = get_field('server_id')
+      server_name = get_field('nickname')
+      deployment_id = get_field('deployment_id')
+      deployment_name = get_field('deployment_name')
+      wait_until_started = get_field('wait_until_started')
 
-      Maestro.log.info "Found server, '#{server.name}'."
-
-      begin
-        instance_resource = server.launch
-      rescue RightApi::Exceptions::ApiException => e
-        # TODO: a new version with ApiError can check e.response.code
-        if e.message =~ /422/
-          set_error e.message
-          return
+      if server_id
+        write_output "Looking up server by id=#{server_id}\n"
+      else
+        if deployment_id
+          write_output "Looking up server by nickname=#{server_name} deployment_id=#{deployment_id}\n"
         else
-          raise e
+          write_output "Looking up server by nickname=#{server_name} deployment_name=#{deployment_name}\n"
         end
       end
 
-      server_id = get_server_id(server)
+      server = client.get_server(
+          :server_id => server_id,
+          :server_name => server_name,
+          :deployment_id => deployment_id,
+          :deployment_name => deployment_name
+      )
+      server_id = (File.basename server.href).to_i
 
-      write_output "Requested server to start #{server_id}\n"
-      set_field('rightscale_server_id', server_id) # deprecated
-      set_field("#{provider}_ids", (get_field("#{provider}_ids") || []) << server_id)
-      set_field("cloud_ids", (get_field("cloud_ids") || []) << server_id)
+      write_output "Requesting server start for id=#{server_id}\n"
 
-      wait_for_state('operational', server_id)
-      return if error?
+      result = client.start(
+        :server_id => server_id,
+        :wait_until_started => wait_until_started
+      )
 
-      instance = instance_resource.show
+      if !result.success
+        errors = result.errors
+        write_output "Error starting server for id=#{server_id}\n"
+        set_error errors.first.message
+        return
+      end
+
+      set_field('rightscale_server_id', server_id)
+      instance = result.value
       ip_address = instance.public_ip_addresses.first
+      set_field('rightscale_ip_address', ip_address)
       private_ip_address = instance.private_ip_addresses.first
-
-      # save some values in the workitem so they are accessible for deprovision and other tasks
-      # using same naming as the fog plugin
-      set_field('rightscale_ip_address', ip_address) # deprecated
-      set_field('rightscale_private_ip_address', private_ip_address) # deprecated
-
-      set_field("#{provider}_private_ips", (get_field("#{provider}_private_ips") || []) << private_ip_address)
-      set_field("cloud_private_ips", (get_field("cloud_private_ips") || []) << private_ip_address)
-      set_field("#{provider}_ips", (get_field("#{provider}_ips") || []) << ip_address)
-      set_field("cloud_ips", (get_field("cloud_ips") || []) << ip_address)
-
+      set_field('rightscale_private_ip_address', private_ip_address)
 
       context_servers = read_output_value('rightscale_servers') || {}
       context_servers[server_id] = {
           :name => server.name,
-          :state => "operational",
+          :state => server.state,
           :public_ip_address => ip_address,
           :private_ip_address => private_ip_address,
           :multi_cloud_image => instance.multi_cloud_image.show.name,
@@ -97,6 +186,7 @@ module MaestroDev
           :resource_uid => instance.resource_uid
       }
       save_output_value('rightscale_servers', context_servers)
+      set_field('state', server.show.state)
 
       write_output "Server up at #{ip_address}\n"
 
@@ -104,189 +194,283 @@ module MaestroDev
     end
 
     def stop
-      Maestro.log.info "Stopping RightScale servers"
+      Maestro.log.info "Stopping RightScale Worker"
 
-      server_name = get_field('nickname')
-
-      # what to stop
-      server_id = get_field('server_id')
-      if server_id and server_id > 0
-        # stop server id set in task
-        server_ids = [server_id]
-      elsif server_name
-        # stop server name set in task
-        server_ids = nil
-      else
-        # stop previously started servers
-        server_ids = get_field("#{provider}_ids") || []
-      end
-
-      validate_fields(server_ids)
+      # make sure we have all the necessary fields
+      validate_server_fields()
       return if error?
 
-      init_server_connection()
+      client = get_client()
 
-      # stop servers
-      servers = []
-      if server_ids
-        servers = server_ids.map do |id|
-          begin
-            @client.servers.index(:id => id)
-          rescue RightApi::Exceptions::ApiException => e
-            write_output "Unable to get server with id #{id}: #{e.message}. Ignoring\n"
-            nil
-          end
-        end.compact
+      # either server_id is needed, or server_name + deployment is needed
+      server_id = get_field('server_id')
+      server_name = get_field('nickname')
+      deployment_id = get_field('deployment_id')
+      deployment_name = get_field('deployment_name')
+      wait_until_stopped = get_field('wait_until_stopped')
+
+      if server_id
+        write_output "Looking up server by id=#{server_id}\n"
       else
-        servers = @client.servers.index(:filter => ["name==#{server_name}"])
-      end
-      stopped_servers = []
-      servers.each do |s|
-        begin
-          stop_server(s)
-          stopped_servers << s
-        rescue RightApi::Exceptions::ApiException => e
-          msg = "Error stopping server [#{get_server_id(s)}] #{s.name}: #{e.message}. Ignoring"
-          Maestro.log.error msg
-          write_output "#{msg}\n"
+        if deployment_id
+          write_output "Looking up server by nickname=#{server_name} deployment_id=#{deployment_id}\n"
+        else
+          write_output "Looking up server by nickname=#{server_name} deployment_name=#{deployment_name}\n"
         end
       end
 
-      if get_field('wait_until_stopped')
-        stopped_servers.each do |server|
-          server_id = get_server_id(server)
-          msg = "Waiting for server to stop [#{server_id}] #{server.name}"
-          write_output "#{msg}\n"
-          Maestro.log.info msg
-          wait_for_state("inactive", server_id)
-        end
+      server = client.get_server(
+          :server_id => server_id,
+          :server_name => server_name,
+          :deployment_id => deployment_id,
+          :deployment_name => deployment_name
+      )
+      server_id = (File.basename server.href).to_i
+
+      write_output "Requesting server stop for id=#{server_id}\n"
+
+      result = client.stop(
+          :server_id => server_id,
+          :wait_until_stopped => wait_until_stopped
+      )
+
+      if !result.success
+        errors = result.errors
+        set_error errors.first.message
+        return
       end
 
+      server = result.value
+
+      set_field('rightscale_server_id', server_id)
       context_servers = read_output_value('rightscale_servers') || {}
-      servers.each do |server|
-        next unless context_servers[get_server_id(server)]
-        begin
-          state = @client.servers(:id => get_server_id(server)).show.state
-          context_servers[get_server_id(server)][:state] = state
-        rescue RightApi::Exceptions::ApiException => e
-          Maestro.log.info "Unable to get server[#{get_server_id(server)}] #{server.name}: #{e.message}. Ignoring\n"
-        end
-      end
+      context_servers[server_id][:state] = server.show.state if context_servers[server_id]
+      set_field('state', server.show.state)
 
-      write_output "Servers stopped\n"
+      write_output "Server stopped successfully for id=#{server_id}\n"
 
       Maestro.log.info "***********************Completed RightScale.stop***************************"
     end
 
-    def stop_server(server)
-      msg = "Stopping server [#{get_server_id(server)}] #{server.name}"
-      write_output "#{msg}\n"
-      Maestro.log.info msg
-      server.current_instance.terminate
-    end
-
     def wait
-      Maestro.log.info "Waiting for RightScale servers"
+      Maestro.log.info "Waiting for RightScale Worker"
 
-      # TODO: validate states
-      state = get_field('state')
-      server_name = get_field('nickname')
-      server_id = get_field('server_id') || get_field('rightscale_server_id')
-
-      validate_fields(server_id)
-      set_error('Invalid fields, must provide state') if !error? and state.nil?
+      # make sure we have all the necessary fields
+      validate_server_fields()
       return if error?
 
-      init_server_connection()
-      if server_id and server_id.to_i > 0
-        server = @client.servers(:id => server_id).show
-        if server.nil?
-          set_error "No server with id #{server_id}"
-          return
-        end
-        Maestro.log.info "Found server, '#{server_id}'."
+      client = get_client()
+
+      # either server_id is needed, or server_name + deployment is needed
+      server_id = get_field('server_id')
+      server_name = get_field('nickname')
+      deployment_id = get_field('deployment_id')
+      deployment_name = get_field('deployment_name')
+      state = get_field('state')
+
+      if server_id
+        write_output "Looking up server by id=#{server_id}\n"
       else
-        server = @client.servers.index(:filter => ["name==#{server_name}"]).first
-        if server.nil?
-          set_error "No server matches #{server_name}"
-          return
+        if deployment_id
+          write_output "Looking up server by nickname=#{server_name} deployment_id=#{deployment_id}\n"
+        else
+          write_output "Looking up server by nickname=#{server_name} deployment_name=#{deployment_name}\n"
         end
-        Maestro.log.info "Found server, '#{server.name}'."
       end
 
-      server_id = get_server_id(server)
+      server = client.get_server(
+          :server_id => server_id,
+          :server_name => server_name,
+          :deployment_id => deployment_id,
+          :deployment_name => deployment_name
+      )
+      server_id = (File.basename server.href).to_i
 
-      write_output "Waiting until server #{server_id} is #{state}\n"
+      write_output "Requesting wait for id=#{server_id}\n"
 
-      wait_for_state(state, server_id)
-      return if error?
+      result = client.wait(
+          :server_id => server_id,
+          :state => state
+      )
+
+      set_field('rightscale_server_id', server_id)
+
+      if !result.success
+        errors = result.errors
+        set_error errors.first.message
+        return
+      end
+
+      server = result.value
 
       context_servers = read_output_value('rightscale_servers') || {}
-      context_servers[server_id][:state] = state if context_servers[server_id]
+      context_servers[server_id][:state] = server.show.state if context_servers[server_id]
+      set_field('state', server.show.state)
 
-      write_output "Server is #{state}\n"
+      write_output "Server reached state successfully for id=#{server_id}\n"
 
       Maestro.log.info "***********************Completed RightScale.wait***************************"
     end
 
-    def init_server_connection
-      account_id = get_field('account_id')
-      username = get_field('username')
-      password = get_field('password')
-      api_version = get_field('api_version')
-      api_url = get_field('api_url')
+    def start_deployment
+      Maestro.log.info "Starting RightScale Deployment"
 
-      @client = RightApi::Client.new(:email => username, :password => password, :account_id => account_id,
-                                     :api_url => api_url, :api_version => api_version)
+      deployment_id = get_field('deployment_id')
+      deployment_name = get_field('deployment_name')
+      wait_until_started = get_field('wait_until_started')
+      show_progress = get_field('show_progress')
 
-      @client.log LogWrapper.new
-    end
+      validate_deployment_fields()
+      return if error?
 
-    # wait for server to be in a state.
-    # Timeout after 600s without changing state, check every 10s
-    def wait_for_state(state, server_id, timeout=600, interval=10)
-      server = nil
-      last_state = nil
-      i = 0
-      while i <= timeout do
-        server = @client.servers(:id => server_id).show
-        return true if server.state == state
+      client = get_client()
 
-        # print in the output if server changed state, and reset timeout
-        if server.state != last_state
-          last_state = server.state
-          i = 0
-          msg = "Server state is now #{server.state}, waiting for #{state}"
-          write_output "#{msg}\n"
-          Maestro.log.info msg
+      result = client.start_servers_in_deployment(
+          :deployment_id => deployment_id,
+          :deployment_name => deployment_name,
+          :wait_until_started => wait_until_started,
+          :show_progress => show_progress
+      )
+
+      # FIXME - start using the log wrapper to write to the maestro log and write_output, but write_output should
+      # probably be less verbose at some point in the near future
+      if result.success
+        if wait_until_started
+          @log_wrapper.info "Deployment (id=#{deployment_id} name=#{deployment_name}) started"
         else
-          Maestro.log.debug "Server state is #{server.state}, waiting for #{state} (#{i}/#{timeout})"
+          @log_wrapper.info "Deployment (id=#{deployment_id} name=#{deployment_name}) launched"
         end
-
-        sleep interval
-        i += interval
+      else
+        @log_wrapper.error "Deployment (id=#{deployment_id} name=#{deployment_name}) startup had errors"
       end
 
-      msg = "Timed out after #{timeout}s waiting for server #{server.name} to reach state #{state}, is currently #{server.state}"
-      Maestro.log.info msg
-      set_error msg
+      server_instances = result.value
+      if server_instances.nil? || server_instances.size == 0
+        @log_wrapper.info "No servers in deployment (id=#{deployment_id} name=#{deployment_name}) to start"
+        return
+      end
+
+      if !result.errors.nil?
+        @log_wrapper.info "#{result.errors.size} Errors starting deployment (id=#{deployment_id} name=#{deployment_name})"
+        result.errors.each{|error|
+          @log_wrapper.error "  #{error.message}, backtrace=#{error.backtrace}"
+        }
+      end
+
+      if !result.notices.nil?
+        @log_wrapper.info "#{result.notices.size} Notices starting deployment (id=#{deployment_id} name=#{deployment_name})"
+        result.notices.each{|notice|
+          @log_wrapper.warn "  #{notice.message}"
+        }
+      end
+
+      # bail if there are errors
+      if !result.errors.nil?
+        return
+      end
+
+      server_instances.each {|server_id, instance|
+        ip_address = instance.public_ip_addresses.first
+        private_ip_address = instance.private_ip_addresses.first
+
+        context_servers = read_output_value('rightscale_servers') || {}
+        context_servers[server_id] = {
+            :name => server.name,
+            :state => "operational",
+            :public_ip_address => ip_address,
+            :private_ip_address => private_ip_address,
+            :multi_cloud_image => instance.multi_cloud_image.show.name,
+            :server_template => instance.server_template.show.name,
+            :deployment => instance.deployment.show.name,
+            :resource_uid => instance.resource_uid
+        }
+        save_output_value('rightscale_servers', context_servers)
+
+        Maestro.log.info "Server up at #{ip_address}\n"
+        write_output "Server up at #{ip_address}\n"
+
+        @log_wrapper.debug "Server instance id=#{server_id} state=#{instance.state} dump=#{instance.inspect} resource_uid=#{instance.resource_uid}"
+        @log_wrapper.debug "  resource_uid: #{instance.resource_uid}"
+        @log_wrapper.debug "  deployment: #{instance.deployment.show.name}"
+        @log_wrapper.debug "  public_ip_addresses: #{instance.public_ip_addresses}"
+        @log_wrapper.debug "  private_ip_addresses: #{instance.public_ip_addresses}"
+        @log_wrapper.debug "  multi_cloud_image: #{instance.multi_cloud_image.show.name}"
+        @log_wrapper.debug "  server_template: #{instance.server_template.show.name}"
+      }
+
+      Maestro.log.info "***********************Completed RightScale.start***************************"
     end
 
-    def close()
-    end
 
-    private
+    def stop_deployment
+      Maestro.log.info "Stopping RightScale Deployment"
 
-    # get the id of a server object returned by the API
-    def get_server_id(server)
-      File.basename server.href
-    end
+      deployment_id = get_field('deployment_id')
+      deployment_name = get_field('deployment_name')
+      wait_until_stopped = get_field('wait_until_stopped')
+      show_progress = get_field('show_progress')
 
-  end
+      validate_deployment_fields()
+      return if error?
 
-  class LogWrapper
-    def << s
-      Maestro.log.debug s
+      client = get_client()
+
+      result = client.stop_servers_in_deployment(
+          :deployment_id => deployment_id,
+          :deployment_name => deployment_name,
+          :wait_until_stopped => wait_until_stopped,
+          :show_progress => show_progress
+      )
+
+      # FIXME - start using the log wrapper to write to the maestro log and write_output, but write_output should
+      # probably be less verbose at some point in the near future
+      if result.success
+        if wait_until_stopped
+          @log_wrapper.info "Deployment (id=#{deployment_id} name=#{deployment_name}) stopped"
+        else
+          @log_wrapper.info "Deployment (id=#{deployment_id} name=#{deployment_name}) stop requested"
+        end
+      else
+        @log_wrapper.error "Deployment (id=#{deployment_id} name=#{deployment_name}) stop had errors"
+      end
+
+      server_instances = result.value
+      if server_instances.nil? || server_instances.size == 0
+        @log_wrapper.info "No servers in deployment (id=#{deployment_id} name=#{deployment_name}) to stop"
+        return
+      end
+
+      if !result.errors.nil?
+        @log_wrapper.info "#{result.errors.size} Errors stopping deployment (id=#{deployment_id} name=#{deployment_name})"
+        result.errors.each{|error|
+          @log_wrapper.error "  #{error.message}, backtrace=#{error.backtrace}"
+        }
+      end
+
+      if !result.notices.nil?
+        @log_wrapper.info "#{result.notices.size} Notices stopping deployment (id=#{deployment_id} name=#{deployment_name})"
+        result.notices.each{|notice|
+          @log_wrapper.warn "  #{notice.message}"
+        }
+      end
+
+      # bail if there are errors
+      if !result.errors.nil?
+        return
+      end
+
+      server_instances.each {|server_id, instance|
+        context_servers = read_output_value('rightscale_servers') || {}
+        context_servers[server_id] = {
+            :name => server.name,
+            :state => "inactive"
+        }
+        save_output_value('rightscale_servers', context_servers)
+
+        @log_wrapper.debug "Server (id=#{server_id}, name=#{server.name}) down"
+      }
+
+      Maestro.log.info "***********************Completed RightScale.stop***************************"
     end
   end
 end

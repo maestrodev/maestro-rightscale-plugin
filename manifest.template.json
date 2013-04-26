@@ -1,203 +1,433 @@
 {
-  "source_types":[
-    {
-      "name":"RightScale",
-      "options":{
-        "account_id":"Integer",
-        "username":"String",
-        "password":"Password",
-        "api_url":"Url"
-      }
-    }
-  ],
-  "tasks":[
-    {
-      "name":"rightscale start server",
-      "description":"Start a server defined in RightScale",
-      "license":"Apache License 2.0",
-      "author":"Brett Porter",
-      "version":"updated at build time",
-      "class":"MaestroDev::RightScaleWorker",
-      "type":"ruby",
-      "dependencies":[],
-      "task":{
-        "command":"/rightscale/start",
-        "inputs":{
-          "nickname":{
-            "required":false,
-            "type":"String",
-            "value":null,
-            "description":"Server nickname, ignored if server_id is set"
-          },
-          "server_id":{
-            "required":false,
-            "type":"Integer",
-            "value":null,
-            "description":"Server id. If not set then nickname is used"
-          },
-          "account_id":{
-            "required":true,
-            "type":"Integer",
-            "value":null,
-            "description":"RightScale account id"
-          },
-          "username":{
-            "required":true,
-            "type":"String",
-            "value":null,
-            "description":"RightScale username"
-          },
-          "password":{
-            "required":true,
-            "type":"Password",
-            "value":null,
-            "description":"RightScale password"
-          },
-          "api_url":{
-            "required":false,
-            "type":"Url",
-            "value":"https://my.rightscale.com",
-            "description":"RightScale API endpoint URL"
-          }
+    "source_types": [
+        {
+            "name": "RightScale",
+            "options": {
+                "account_id": "Integer",
+                "username": "String",
+                "password": "Password",
+                "api_url": "Url",
+                "oauth_url": "Url",
+                "refresh_token": "String"
+            }
+        }
+    ],
+    "tasks": [
+        {
+            "name": "rightscale start server",
+            "description": "Start a server defined in RightScale",
+            "license": "Apache License 2.0",
+            "author": "Brett Porter",
+            "version": "updated at build time",
+            "class": "MaestroDev::RightScaleWorker",
+            "type": "ruby",
+            "dependencies": [],
+            "task": {
+                "command": "/rightscale/start",
+                "inputs": {
+                    "nickname": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "Server nickname, ignored if server_id is set"
+                    },
+                    "server_id": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "Server id. If not set then nickname is used"
+                    },
+                    "deployment_id": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "Deployment id. Used in combination with (non-unique) nickname to find the correct server"
+                    },
+                    "deployment_name": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "Deployment name. Used in combination with (non-unique) nickname to find the correct server"
+                    },
+                    "wait_until_started": {
+                        "required": false,
+                        "type": "Boolean",
+                        "value": true,
+                        "description": "Make the composition wait until the server is started"
+                    },
+                    "api_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com",
+                        "description": "RightScale API endpoint URL"
+                    },
+                    "account_id": {
+                        "required": true,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "RightScale account id"
+                    },
+                    "username": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale username"
+                    },
+                    "password": {
+                        "required": false,
+                        "type": "Password",
+                        "value": null,
+                        "description": "RightScale password"
+                    },
+                    "oauth_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com/api/oauth2",
+                        "description": "RightScale OAuth API endpoint URL"
+                    },
+                    "refresh_token": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale API Refresh Token"
+                    }
+                },
+                "outputs": {
+                    "rightscale_server_id": {
+                        "type": "Integer"
+                    },
+                    "rightscale_ip_address": {
+                        "type": "String"
+                    },
+                    "rightscale_private_ip_address": {
+                        "type": "String"
+                    }
+                },
+                "icon": "rightscale.png",
+                "tool_name": "Cloud"
+            }
         },
-        "outputs":{
-          "rightscale_server_id":{
-            "type":"Integer"
-          },
-          "rightscale_ip_address":{
-            "type":"String"
-          },
-          "rightscale_private_ip_address":{
-            "type":"String"
-          }
+        {
+            "name": "rightscale stop server",
+            "description": "Stop a server defined in RightScale",
+            "license": "Apache License 2.0",
+            "author": "Brett Porter",
+            "version": "updated at build time",
+            "class": "MaestroDev::RightScaleWorker",
+            "type": "ruby",
+            "dependencies": [],
+            "task": {
+                "command": "/rightscale/stop",
+                "inputs": {
+                    "nickname": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "Server nickname, ignored if server_id is set"
+                    },
+                    "server_id": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "Server id. If not set then nickname is used"
+                    },
+                    "deployment_id": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "Deployment id. Used in combination with (non-unique) nickname to find the correct server"
+                    },
+                    "deployment_name": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "Deployment name. Used in combination with (non-unique) nickname to find the correct server"
+                    },
+                    "wait_until_stopped": {
+                        "required": false,
+                        "type": "Boolean",
+                        "value": true,
+                        "description": "Make the composition wait until the server is stopped"
+                    },
+                    "api_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com",
+                        "description": "RightScale API endpoint URL"
+                    },
+                    "account_id": {
+                        "required": true,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "RightScale account id"
+                    },
+                    "username": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale username"
+                    },
+                    "password": {
+                        "required": false,
+                        "type": "Password",
+                        "value": null,
+                        "description": "RightScale password"
+                    },
+                    "oauth_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com/api/oauth2",
+                        "description": "RightScale OAuth API endpoint URL"
+                    },
+                    "refresh_token": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale API Refresh Token"
+                    }
+                },
+                "outputs": {
+                    "rightscale_server_id": {
+                        "type": "Integer"
+                    },
+                    "state": {
+                        "type": "String"
+                    }
+                },
+                "icon": "rightscale.png",
+                "tool_name": "Cloud"
+            }
         },
-        "icon": "rightscale.png",
-        "tool_name":"Cloud"
-      }
-    },
-    {
-      "name":"rightscale stop server",
-      "description":"Stop a server defined in RightScale",
-      "license":"Apache License 2.0",
-      "author":"Brett Porter",
-      "version":"updated at build time",
-      "class":"MaestroDev::RightScaleWorker",
-      "type":"ruby",
-      "dependencies":[],
-      "task":{
-        "command":"/rightscale/stop",
-        "inputs":{
-          "nickname":{
-            "required":false,
-            "type":"String",
-            "value":null,
-            "description":"Server nickname, ignored if server_id is set"
-          },
-          "server_id":{
-            "required":false,
-            "type":"Integer",
-            "value":null,
-            "description":"Server id. If not set then nickname is used"
-          },
-          "account_id":{
-            "required":true,
-            "type":"Integer",
-            "value":null,
-            "description":"RightScale account id"
-          },
-          "username":{
-            "required":true,
-            "type":"String",
-            "value":null,
-            "description":"RightScale username"
-          },
-          "password":{
-            "required":true,
-            "type":"Password",
-            "value":null,
-            "description":"RightScale password"
-          },
-          "api_url":{
-            "required":false,
-            "type":"Url",
-            "value":"https://my.rightscale.com",
-            "description":"RightScale API endpoint URL"
-          },
-          "wait_until_stopped": {
-            "required":false,
-            "type":"Boolean",
-            "value":true,
-            "description":"Make the composition wait until the server is stopped"
-          }
+        {
+            "name": "rightscale wait for server state",
+            "description": "Wait for a server defined in RightScale to be in a certain state",
+            "license": "Apache License 2.0",
+            "author": "Brett Porter",
+            "version": "updated at build time",
+            "class": "MaestroDev::RightScaleWorker",
+            "type": "ruby",
+            "dependencies": [],
+            "task": {
+                "command": "/rightscale/wait",
+                "inputs": {
+                    "nickname": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "Server nickname, ignored if server_id is set"
+                    },
+                    "server_id": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "Server id. If not set then nickname is used"
+                    },
+                    "account_id": {
+                        "required": true,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "RightScale account id"
+                    },
+                    "username": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale username"
+                    },
+                    "password": {
+                        "required": false,
+                        "type": "Password",
+                        "value": null,
+                        "description": "RightScale password"
+                    },
+                    "api_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com",
+                        "description": "RightScale API endpoint URL"
+                    },
+                    "state": {
+                        "required": true,
+                        "type": "String",
+                        "value": "operational",
+                        "description": "Make the composition wait until the server is in this state (pending, booting, stopped, terminated, operational,...)"
+                    }
+                },
+                "outputs": {
+                    "rightscale_server_id": {
+                        "type": "Integer"
+                    },
+                    "state": {
+                        "type": "String"
+                    }
+                },
+                "icon": "rightscale.png",
+                "tool_name": "Cloud"
+            }
         },
-        "outputs":{
-          "state":{
-            "type":"String"
-          }
+        {
+            "name": "rightscale start deployment",
+            "description": "Start all servers in a deployment defined in RightScale",
+            "license": "Apache License 2.0",
+            "author": "David Castror",
+            "version": "updated at build time",
+            "class": "MaestroDev::RightScaleWorker",
+            "type": "ruby",
+            "dependencies": [],
+            "task": {
+                "command": "/rightscale/start_deployment",
+                "inputs": {
+                    "deployment_id": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "ID of the deployment to start servers in"
+                    },
+                    "deployment_name": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "Name of the deployment to start servers in"
+                    },
+                    "wait_until_started": {
+                        "required": false,
+                        "type": "Boolean",
+                        "value": true,
+                        "description": "Make the composition wait until the servers are started"
+                    },
+                    "show_progress": {
+                        "required": false,
+                        "type": "Boolean",
+                        "value": true,
+                        "description": "Show progress of the checks for server state"
+                    },
+                    "api_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com",
+                        "description": "RightScale API endpoint URL"
+                    },
+                    "account_id": {
+                        "required": true,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "RightScale account id"
+                    },
+                    "username": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale username"
+                    },
+                    "password": {
+                        "required": false,
+                        "type": "Password",
+                        "value": null,
+                        "description": "RightScale password"
+                    },
+                    "oauth_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com/api/oauth2",
+                        "description": "RightScale OAuth API endpoint URL"
+                    },
+                    "refresh_token": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale API Refresh Token"
+                    }
+                },
+                "outputs": {
+                    "rightscale_servers": {
+                        "type": "Integer"
+                    }
+                },
+                "icon": "rightscale.png",
+                "tool_name": "Cloud"
+            }
         },
-        "icon": "rightscale.png",
-        "tool_name":"Cloud"
-      }
-    },
-    {
-      "name":"rightscale wait for server state",
-      "description":"Wait for a server defined in RightScale to be in a certain state",
-      "license":"Apache License 2.0",
-      "author":"Brett Porter",
-      "version":"updated at build time",
-      "class":"MaestroDev::RightScaleWorker",
-      "type":"ruby",
-      "dependencies":[],
-      "task":{
-        "command":"/rightscale/wait",
-        "inputs":{
-          "nickname":{
-            "required":false,
-            "type":"String",
-            "value":null,
-            "description":"Server nickname, ignored if server_id is set"
-          },
-          "server_id":{
-            "required":false,
-            "type":"Integer",
-            "value":null,
-            "description":"Server id. If not set then nickname is used"
-          },
-          "account_id":{
-            "required":true,
-            "type":"Integer",
-            "value":null,
-            "description":"RightScale account id"
-          },
-          "username":{
-            "required":true,
-            "type":"String",
-            "value":null,
-            "description":"RightScale username"
-          },
-          "password":{
-            "required":true,
-            "type":"Password",
-            "value":null,
-            "description":"RightScale password"
-          },
-          "api_url":{
-            "required":false,
-            "type":"Url",
-            "value":"https://my.rightscale.com",
-            "description":"RightScale API endpoint URL"
-          },
-          "state": {
-            "required":true,
-            "type":"String",
-            "value":"operational",
-            "description":"Make the composition wait until the server is in this state (pending, booting, stopped, terminated, operational,...)"
-          }
-        },
-        "outputs":{},
-        "icon": "rightscale.png",
-        "tool_name":"Cloud"
-      }
-    }
-  ]
+        {
+            "name": "rightscale stop deployment",
+            "description": "Stop all servers in a deployment defined in RightScale",
+            "license": "Apache License 2.0",
+            "author": "David Castror",
+            "version": "updated at build time",
+            "class": "MaestroDev::RightScaleWorker",
+            "type": "ruby",
+            "dependencies": [],
+            "task": {
+                "command": "/rightscale/stop_deployment",
+                "inputs": {
+                    "deployment_id": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "ID of the deployment to stop servers in"
+                    },
+                    "deployment_name": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "Name of the deployment to stop servers in"
+                    },
+                    "wait_until_stopped": {
+                        "required": false,
+                        "type": "Boolean",
+                        "value": true,
+                        "description": "Make the composition wait until the servers are stopped"
+                    },
+                    "show_progress": {
+                        "required": false,
+                        "type": "Boolean",
+                        "value": true,
+                        "description": "Show progress of the checks for server state"
+                    },
+                    "api_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com",
+                        "description": "RightScale API endpoint URL"
+                    },
+                    "account_id": {
+                        "required": true,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "RightScale account id"
+                    },
+                    "username": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale username"
+                    },
+                    "password": {
+                        "required": false,
+                        "type": "Password",
+                        "value": null,
+                        "description": "RightScale password"
+                    },
+                    "oauth_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com/api/oauth2",
+                        "description": "RightScale OAuth API endpoint URL"
+                    },
+                    "refresh_token": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale API Refresh Token"
+                    }
+                },
+                "outputs": {
+                    "rightscale_servers": {
+                        "type": "Integer"
+                    }
+                },
+                "icon": "rightscale.png",
+                "tool_name": "Cloud"
+            }
+        }
+    ]
 }
