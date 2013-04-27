@@ -17,14 +17,13 @@ module MaestroDev
         # if not refresh token, but either username/password we'll specify which one
         if get_field('username').nil?
           missing_fields << 'username'
-        elsif
+        else
           missing_fields << 'password'
         end
       end
     end
 
-    def validate_server_fields
-      missing_fields = []
+    def validate_server_fields(missing_fields = [])
       if get_field('server_id').nil? and ((get_field('nickname').nil? or (get_field('deployment_id').nil? and get_field('deployment_name').nil?)))
         missing_fields << '(nickname and deployment_id) or (nickname and deployment_name) or server_id'
       end
@@ -35,13 +34,10 @@ module MaestroDev
 
     def validate_wait_fields
       missing_fields = []
-      if get_field('server_id').nil? and ((get_field('nickname').nil? or (get_field('deployment_id').nil? and get_field('deployment_name').nil?)))
-        missing_fields << '(nickname and deployment_id) or (nickname and deployment_name) or server_id'
-      end
       if get_field('state').nil?
         missing_fields << 'state'
       end
-      validate_base_fields(missing_fields)
+      validate_server_fields(missing_fields)
 
       set_error("Invalid fields, must provide #{missing_fields.join(", ")}") unless missing_fields.empty?
     end
