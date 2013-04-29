@@ -151,12 +151,12 @@ module MaestroDev
       @logger.info "#{indent}start(): Starting Server (id=#{server_id}, name=#{server_name})"
 
       if server.state == STATE_PENDING || server.state == STATE_BOOTING
-        @logger.info "#{indent}start(): Server (name=#{server.name}, id=#{server_id}, state=#{server.state}) already pending/booting"
+        @logger.info "#{indent}start(): Server (id=#{server_id}, name=#{server.name}, state=#{server.state}) already pending/booting"
       elsif server.state == STATE_OPERATIONAL
-        @logger.error "#{indent}start(): Not starting Server (name=#{server.name}, id=#{server_id}, state=#{server.state}), already operational"
+        @logger.error "#{indent}start(): Not starting Server (id=#{server_id}, name=#{server.name}, state=#{server.state}), already operational"
         return Result.new(:success => true, :notices => [Exception.new('Cannot start server that is already operational')], :value => server.show.current_instance.show)
       elsif server.state != STATE_INACTIVE
-        @logger.error "#{indent}start(): Not starting Server (name=#{server.name}, id=#{server_id}, state=#{server.state}), not inactive"
+        @logger.error "#{indent}start(): Not starting Server (id=#{server_id}, name=#{server.name}, state=#{server.state}), not inactive"
         return Result.new(:success => false, :errors => [Exception.new('Cannot start server that is not in inactive state')], :value => server)
       end
 
@@ -250,12 +250,12 @@ module MaestroDev
       @logger.info "#{indent}stop(): Stopping Server (id=#{server_id}, name=#{server_name})"
 
       if server.state == STATE_TERMINATING || server.state == STATE_DECOMMISSIONING
-        @logger.info "#{indent}stop(): Server (name=#{server.name}, id=#{server_id}, state=#{server.state}) already terminating/decommissioning"
+        @logger.info "#{indent}stop(): Server (id=#{server_id}, name=#{server.name}, state=#{server.state}) already terminating/decommissioning"
       elsif server.state == STATE_INACTIVE
-        @logger.error "#{indent}stop(): Not stopping Server (name=#{server.name}, id=#{server_id}, state=#{server.state}), not operational"
+        @logger.error "#{indent}stop(): Not stopping Server (id=#{server_id}, name=#{server.name}, state=#{server.state}), not operational"
         return Result.new(:success => true, :notice => [Exception.new('Cannot stop server that is inactive')], :value => server)
       elsif server.state != STATE_OPERATIONAL
-        @logger.error "#{indent}stop(): Not stopping Server (name=#{server.name}, id=#{server_id}, state=#{server.state}), not operational"
+        @logger.error "#{indent}stop(): Not stopping Server (id=#{server_id}, name=#{server.name}, state=#{server.state}), not operational"
         return Result.new(:success => false, :errors => [Exception.new('Cannot stop server that is not in operational state')], :value => server)
       end
 
@@ -533,7 +533,7 @@ module MaestroDev
       end
 
       deployment_id = (File.basename deployment.href).to_i
-      @logger.debug "#{indent}get_deployment(): Deployment (name=#{deployment_name}, id=#{deployment_id}): #{deployment.inspect}"
+      @logger.debug "#{indent}get_deployment(): Deployment (id=#{deployment_id}, name=#{deployment_name}): #{deployment.inspect}"
 
       return deployment
     end
@@ -553,11 +553,11 @@ module MaestroDev
 
       args_no_pass = args.delete_if {|key, _| key == 'password' }
       @logger.debug "#{indent}get_servers_in_deployment(#{args_no_pass.inspect})"
-      @logger.debug "#{indent}get_servers_in_deployment(): Getting servers in Deployment (name=#{deployment_name}, id=#{deployment_id})"
+      @logger.debug "#{indent}get_servers_in_deployment(): Getting servers in Deployment (id=#{deployment_id}, name=#{deployment_name})"
 
       deployment = get_deployment(:deployment_id => deployment_id, :deployment_name => deployment_name, :indent => "#{indent}  ");
       if deployment.nil?
-        @logger.warn "#{indent}get_servers_in_deployment(): Deployment (name=#{deployment_name}, id=#{deployment_id}) not found"
+        @logger.warn "#{indent}get_servers_in_deployment(): Deployment (id=#{deployment_id}, name=#{deployment_name}) not found"
         return
       end
 
@@ -591,12 +591,12 @@ module MaestroDev
 
       args_no_pass = args.delete_if {|key, _| key == 'password' }
       @logger.debug "#{indent}start_servers_in_deployment(#{args_no_pass.inspect})"
-      @logger.info "#{indent}start_servers_in_deployment(): Starting Deployment (name=#{deployment_name}, id=#{deployment_id})"
+      @logger.info "#{indent}start_servers_in_deployment(): Starting Deployment (id=#{deployment_id}, name=#{deployment_name})"
 
       servers = get_servers_in_deployment(:deployment_id => deployment_id, :deployment_name => deployment_name, :indent => "#{indent}  ")
 
       if servers.nil?
-        @logger.warn "#{indent}start_servers_in_deployment(): No servers were found in Deployment (name=#{deployment_name}, id=#{deployment_id})"
+        @logger.warn "#{indent}start_servers_in_deployment(): No servers were found in Deployment (id=#{deployment_id}, name=#{deployment_name})"
         return
       end
 
@@ -618,19 +618,19 @@ module MaestroDev
             launched_servers << server
             server_instances[server_id] = instance
           rescue e
-            @logger.error "#{indent}start_servers_in_deployment(): Couldn't start Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
+            @logger.error "#{indent}start_servers_in_deployment(): Couldn't start Server (id=#{server_id}, name=#{server.name}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
             @logger.error "#{indent}start_servers_in_deployment():   #{e.message}"
             @logger.error "#{indent}start_servers_in_deployment():   #{e.backtrace}"
             errors << e
           end
         elsif server.state == STATE_PENDING || server.state == STATE_BOOTING
-          @logger.info "#{indent}start_servers_in_deployment(): Server (name=#{server.name}, id=#{server_id}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}) already pending/booting"
+          @logger.info "#{indent}start_servers_in_deployment(): Server (id=#{server_id}, name=#{server.name}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}) already pending/booting"
           launched_servers << server
           server_instances[server_id] = server.show.current_instance.show
         else
-          @logger.info "#{indent}start_servers_in_deployment(): Not starting Server (name=#{server.name}, id=#{server_id}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}), not inactive"
+          @logger.info "#{indent}start_servers_in_deployment(): Not starting Server (id=#{server_id}, name=#{server.name}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}), not inactive"
           launched_servers << server
-          notices << Exception.new("Couldn't start server (name=#{server.name}, id=#{server_id}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}), not inactive")
+          notices << Exception.new("Couldn't start server (id=#{server_id}, name=#{server.name}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}), not inactive")
           server_instances[server_id] = server.show.current_instance.show
         end
       }
@@ -673,11 +673,11 @@ module MaestroDev
             @logger.debug "#{indent}start_servers_in_deployment(): timeout_left=#{timeout_left} start_time=#{start_time} end_time=#{end_time} time_elapsed=#{time_elapsed}"
 
             if !result.success
-              @logger.error "#{indent}start_servers_in_deployment(): Timed out waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
+              @logger.error "#{indent}start_servers_in_deployment(): Timed out waiting for Server (id=#{server_id}, name=#{server.name}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
               errors << result.errors.first
             end
           rescue e
-            @logger.error "#{indent}start_servers_in_deployment(): Error waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id}): #{e.message}"
+            @logger.error "#{indent}start_servers_in_deployment(): Error waiting for Server (id=#{server_id}, name=#{server.name}) in deployment (name=#{deployment_name}, id=#{deployment_id}): #{e.message}"
             errors << e
           end
         }
@@ -713,12 +713,12 @@ module MaestroDev
       args_no_pass = args.delete_if {|key, _| key == 'password' }
       @logger.debug "#{indent}stop_servers_in_deployment(#{args_no_pass.inspect})"
       @logger.debug "#{indent}stop_servers_in_deployment(#{args.inspect})"
-      @logger.info "#{indent}stop_servers_in_deployment(): Stopping Deployment (name=#{deployment_name}, id=#{deployment_id})"
+      @logger.info "#{indent}stop_servers_in_deployment(): Stopping Deployment (id=#{deployment_id}, name=#{deployment_name})"
 
       servers = get_servers_in_deployment(:deployment_id => deployment_id, :deployment_name => deployment_name, :indent => "#{indent}  ")
 
       if servers.nil?
-        @logger.warn "#{indent}stop_servers_in_deployment(): No servers were found in Deployment (name=#{deployment_name}, id=#{deployment_id})"
+        @logger.warn "#{indent}stop_servers_in_deployment(): No servers were found in Deployment (id=#{deployment_id}, name=#{deployment_name})"
         return
       end
 
@@ -743,11 +743,11 @@ module MaestroDev
           end
         elsif server.state == STATE_TERMINATING
           # servers that have are trying to stop, we want to wait for these too
-          @logger.info "#{indent}stop_servers_in_deployment(): Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id}) already stopping"
+          @logger.info "#{indent}stop_servers_in_deployment(): Server (id=#{server_id}, name=#{server.name}) in deployment (name=#{deployment_name}, id=#{deployment_id}) already stopping"
           wait_for_servers << server
         else
-          @logger.info "#{indent}stop_servers_in_deployment(): Not stopping Server (name=#{server.name}, id=#{server_id}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}), not operational"
-          notices << Exception.new("Couldn't stop server (name=#{server.name}, id=#{server_id}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}), not operational")
+          @logger.info "#{indent}stop_servers_in_deployment(): Not stopping Server (id=#{server_id}, name=#{server.name}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}), not operational"
+          notices << Exception.new("Couldn't stop server (id=#{server_id}, name=#{server.name}, state=#{server.state}) in deployment (name=#{deployment_name}, id=#{deployment_id}), not operational")
         end
 
         stopped_servers[server_id] = server
@@ -791,11 +791,11 @@ module MaestroDev
             @logger.debug "#{indent}stop_servers_in_deployment(): timeout_left=#{timeout_left} start_time=#{start_time} end_time=#{end_time} time_elapsed=#{time_elapsed}"
 
             if !result.success
-              @logger.error "#{indent}stop_servers_in_deployment(): Timed out waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
+              @logger.error "#{indent}stop_servers_in_deployment(): Timed out waiting for Server (id=#{server_id}, name=#{server.name}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
               errors << result.errors.first
             end
           rescue e
-            @logger.error "#{indent}stop_servers_in_deployment(): Error waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id}): #{e.message}"
+            @logger.error "#{indent}stop_servers_in_deployment(): Error waiting for Server (id=#{server_id}, name=#{server.name}) in deployment (name=#{deployment_name}, id=#{deployment_id}): #{e.message}"
             errors << e
           end
         }
