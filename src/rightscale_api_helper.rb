@@ -37,15 +37,14 @@ module MaestroDev
       @logger = args[:logger] || Logger.new(STDOUT)
       @trace = args[:trace]
 
-      begin
+      # if this is a logger instance, set the level
+      if (@logger.instance_of?Logger)
         if args[:verbose]
           @logger.level = Logger::DEBUG
           @logger.debug 'Setting log level to DEBUG'
         else
           @logger.level = Logger::INFO
         end
-      rescue Exception => e
-        # we don't really care if this failed, just means the logger didn't have a level accessor
       end
 
       # initialize accepts all connect settings
