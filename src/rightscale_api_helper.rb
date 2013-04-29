@@ -189,11 +189,12 @@ module MaestroDev
             :timeout_reset => timeout_reset,
             :indent => "#{indent}  "
         )
-        @logger.info "#{indent}start(): Started Server (id=#{server_id}, name=#{server_name})"
         instance = @client.servers(:id => server_id).show
         if !result.success
+          @logger.info "#{indent}start(): Started Server (id=#{server_id}, name=#{server_name}), but timed out waiting for state"
           return Result.new(:success => false, :errors => result.errors, :value => instance)
         end
+        @logger.info "#{indent}start(): Started Server (id=#{server_id}, name=#{server_name})"
       else
         @logger.info "#{indent}start(): Requested start of Server (id=#{server_id}, name=#{server_name})"
       end
