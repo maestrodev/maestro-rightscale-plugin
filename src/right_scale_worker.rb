@@ -5,6 +5,10 @@ require File.expand_path('../rightscale_api_helper', __FILE__)
 module MaestroDev
   class RightScaleWorker < Maestro::MaestroWorker
 
+    def provider
+      'rightscale'
+    end
+
     # FIXME - convert everything over to allowing RightScale Refresh Tokens instead of username/password
     def validate_base_fields(missing_fields)
       if get_field('account_id').nil?
@@ -146,9 +150,13 @@ module MaestroDev
           :deployment_id => deployment_id,
           :deployment_name => deployment_name
       )
-      server_id = (File.basename server.href).to_i
+      server_id = get_server_id(server)
 
       write_output "Requesting server start for id=#{server_id}\n"
+
+      set_field('rightscale_server_id', server_id) # deprecated
+      set_field("#{provider}_ids", (get_field("#{provider}_ids") || []) << server_id)
+      set_field("cloud_ids", (get_field("cloud_ids") || []) << server_id)
 
       result = client.start(
         :server_id => server_id,
@@ -162,12 +170,17 @@ module MaestroDev
         return
       end
 
-      set_field('rightscale_server_id', server_id)
       instance = result.value
       ip_address = instance.public_ip_addresses.first
-      set_field('rightscale_ip_address', ip_address)
       private_ip_address = instance.private_ip_addresses.first
+
+      set_field('rightscale_ip_address', ip_address)
       set_field('rightscale_private_ip_address', private_ip_address)
+
+      set_field("#{provider}_private_ips", (get_field("#{provider}_private_ips") || []) << private_ip_address)
+      set_field("cloud_private_ips", (get_field("cloud_private_ips") || []) << private_ip_address)
+      set_field("#{provider}_ips", (get_field("#{provider}_ips") || []) << ip_address)
+      set_field("cloud_ips", (get_field("cloud_ips") || []) << ip_address)
 
       context_servers = read_output_value('rightscale_servers') || {}
       context_servers[server_id] = {
@@ -206,11 +219,21 @@ module MaestroDev
 
       if server_id
         write_output "Looking up server by id=#{server_id}\n"
-      else
+      elsif server_name
         if deployment_id
           write_output "Looking up server by nickname=#{server_name} deployment_id=#{deployment_id}\n"
         else
           write_output "Looking up server by nickname=#{server_name} deployment_name=#{deployment_name}\n"
+        end
+      else
+        # get the last previously started server
+        sid = get_field('rightscale_server_id')
+        if server_id && server_id.to_i > 0
+          server_id = sid
+          write_output "Using previously started RightScale server id=#{server_id}\n"
+        else
+          set_error 'Unable to find server id or name to stop.'
+          return
         end
       end
 
@@ -220,7 +243,7 @@ module MaestroDev
           :deployment_id => deployment_id,
           :deployment_name => deployment_name
       )
-      server_id = (File.basename server.href).to_i
+      server_id = get_server_id(server)
 
       write_output "Requesting server stop for id=#{server_id}\n"
 
@@ -279,7 +302,7 @@ module MaestroDev
           :deployment_id => deployment_id,
           :deployment_name => deployment_name
       )
-      server_id = (File.basename server.href).to_i
+      server_id = get_server_id(server)
 
       write_output "Waiting for Server (id=#{server_id}, name=#{server_name}) to enter state=#{state}\n"
 
@@ -466,6 +489,15 @@ module MaestroDev
       }
 
       Maestro.log.info "***********************Completed RightScale.stop***************************"
+    end
+
+    private
+    # get the id of a server object returned by the API
+    def get_server_id(server)
+      if (server)
+        (File.basename server.href).to_i
+      end
+      return nil
     end
   end
 end
