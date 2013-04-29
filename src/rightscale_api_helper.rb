@@ -444,7 +444,7 @@ module MaestroDev
         filtered = []
         # find the server with the correct deployment id, if specified
         if deployment_id || deployment_name
-          servers.each_with_index {|s|
+          servers.each {|s|
             server_id = (File.basename s.href).to_i
             # get the deployment for the server
             d = s.deployment
