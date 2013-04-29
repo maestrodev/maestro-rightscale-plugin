@@ -473,7 +473,7 @@ module MaestroDev
           servers = filtered
         end
 
-        if servers.nil?
+        if servers.nil? || servers.empty?
           @logger.warn "#{indent}get_server(): No server matches name='#{server_name}'"
           return
         elsif servers.size > 1
