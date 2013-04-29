@@ -74,36 +74,31 @@ module MaestroDev
 
       # FIXME - handle timeout of the session token here
       if @client.nil?
-        begin
-          if @refresh_token
-            @logger.debug "#{indent}connect(): getting access token from refresh token"
-            result = get_access_token(
-                :account_id => @account_id,
-                :refresh_token => @refresh_token,
-                :oauth_url => @oauth_url,
-                :api_url => @api_url,
-                :api_version => @api_version,
-                :indent => "#{indent}  ")
+        if @refresh_token
+          @logger.debug "#{indent}connect(): getting access token from refresh token"
+          result = get_access_token(
+              :account_id => @account_id,
+              :refresh_token => @refresh_token,
+              :oauth_url => @oauth_url,
+              :api_url => @api_url,
+              :api_version => @api_version,
+              :indent => "#{indent}  ")
 
-            access_token = result.value
-            cookies[:rs_gbl] = "#{access_token}"
-            @logger.debug "#{indent}connect(): using cookies: #{cookies}"
+          access_token = result.value
+          cookies[:rs_gbl] = "#{access_token}"
+          @logger.debug "#{indent}connect(): using cookies: #{cookies}"
 
-            @logger.debug "#{indent}connect(): Creating a RightApi client (refresh_token=#{@refresh_token},access_token=#{access_token},email=#{@email},password=*****,account_id=#{@account_id},api_url=#{@api_url},api_version=#{@api_version})"
-            @client = RightApi::Client.new(
-                :account_id => @account_id,
-                :api_url => @api_url,
-                :api_version => @api_version,
-                :cookies => cookies)
-          else
-            @client = RightApi::Client.new(:email => @email, :password => @password, :account_id => @account_id, :api_url => @api_url, :api_version => @api_version)
-          end
-          if @trace
-            @client.log LogWrapper.new(@logger)
-          end
-        rescue Exception => e
-          @logger.error "#{indent}connect(): Exception: #{e.message}"
-          raise e
+          @logger.debug "#{indent}connect(): Creating a RightApi client (refresh_token=#{@refresh_token},access_token=#{access_token},email=#{@email},password=*****,account_id=#{@account_id},api_url=#{@api_url},api_version=#{@api_version})"
+          @client = RightApi::Client.new(
+              :account_id => @account_id,
+              :api_url => @api_url,
+              :api_version => @api_version,
+              :cookies => cookies)
+        else
+          @client = RightApi::Client.new(:email => @email, :password => @password, :account_id => @account_id, :api_url => @api_url, :api_version => @api_version)
+        end
+        if @trace
+          @client.log LogWrapper.new(@logger)
         end
       else
         @logger.debug "#{indent}connect(): Already have a RightApi client, skipping"
