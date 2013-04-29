@@ -59,8 +59,7 @@ module MaestroDev
         @worker = worker
       end
       def << m
-        Maestro.log.debug m
-        @worker.write_output "DEBUG: #{m}\n"
+        self.info(m)
       end
       def error(m)
         Maestro.log.error m
