@@ -296,13 +296,16 @@ module MaestroDev
         end
       end
 
-      server = client.get_server(
-          :server_id => server_id,
-          :server_name => server_name,
-          :deployment_id => deployment_id,
-          :deployment_name => deployment_name
-      )
-      server_id = get_server_id(server)
+      # if we don't already have the server id, do other lookups to get it
+      if !server_id
+        server = client.get_server(
+            :server_id => server_id,
+            :server_name => server_name,
+            :deployment_id => deployment_id,
+            :deployment_name => deployment_name
+        )
+        server_id = get_server_id(server)
+      end
 
       write_output "Waiting for Server (id=#{server_id}, name=#{server_name}) to enter state=#{state}\n"
 
