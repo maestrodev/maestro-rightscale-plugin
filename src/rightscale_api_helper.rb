@@ -172,7 +172,7 @@ module MaestroDev
         begin
           instance_resource = server.launch
           instance = instance_resource.show
-        rescue Exception => e
+        rescue e
           @logger.error("start(): Error launching Server (id=#{server_id}, name=#{server_name}): #{e.message}")
           return Result.new(:success => false, :errors => [e])
         end
@@ -267,7 +267,7 @@ module MaestroDev
         # terminate this server instance
         begin
           server.current_instance.terminate
-        rescue Exception => e
+        rescue e
           @logger.error("stop(): Error launching server '#{server.name}' "+e.message)
           return Result.new(:success => false, :errors => [e], :value => server)
         end
@@ -610,7 +610,7 @@ module MaestroDev
             instance = start(:server_id => server_id, :show_progress => show_progress, :indent => "#{indent}  ")
             launched_servers << server
             server_instances[server_id] = instance
-          rescue Exception => e
+          rescue e
             @logger.error "#{indent}start_servers_in_deployment(): Couldn't start Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
             @logger.error "#{indent}start_servers_in_deployment():   #{e.message}"
             @logger.error "#{indent}start_servers_in_deployment():   #{e.backtrace}"
@@ -663,7 +663,7 @@ module MaestroDev
               @logger.error "#{indent}start_servers_in_deployment(): Timed out waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
               errors << result.errors.first
             end
-          rescue Exception => e
+          rescue e
             @logger.error "#{indent}start_servers_in_deployment(): Error waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id}): #{e.message}"
             errors << e
           end
@@ -775,7 +775,7 @@ module MaestroDev
               @logger.error "#{indent}stop_servers_in_deployment(): Timed out waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
               errors << result.errors.first
             end
-          rescue Exception => e
+          rescue e
             @logger.error "#{indent}stop_servers_in_deployment(): Error waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id}): #{e.message}"
             errors << e
           end
@@ -1005,7 +1005,7 @@ module MaestroDev
       # looks like we didn't have sufficient credentials
       puts "Error connecting to API: #{e}"
       exit 1
-    rescue Exception => e
+    rescue e
       # looks like we didn't have sufficient credentials
       puts "Problem creating AP clientI: #{e.message}"
       exit 1
