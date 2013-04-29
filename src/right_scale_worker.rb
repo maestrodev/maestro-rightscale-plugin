@@ -281,7 +281,7 @@ module MaestroDev
       )
       server_id = (File.basename server.href).to_i
 
-      write_output "Requesting wait for id=#{server_id}\n"
+      write_output "Waiting for Server (id=#{server_id}, name=#{server_name}) to enter state=#{state}\n"
 
       result = client.wait(
           :server_id => server_id,

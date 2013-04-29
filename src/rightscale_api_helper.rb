@@ -340,7 +340,7 @@ module MaestroDev
       )
 
       if server.nil?
-        @logger.error "#{indent}start(): Server (id=#{server_id}, name=#{server.name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name} state=#{server.state}) cannot be found"
+        @logger.error "#{indent}wait(): Server (id=#{server_id}, name=#{server.name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name} state=#{server.state}) cannot be found"
         return Result.new(:success => false, :errors => [Exception.new("Cannot find Server (id=#{server_id}, name=#{server.name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}) to wait for")])
       end
 
