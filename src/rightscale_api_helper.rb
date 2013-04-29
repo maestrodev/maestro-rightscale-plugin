@@ -455,7 +455,7 @@ module MaestroDev
             if d_id == deployment_id
               @logger.debug "#{indent}get_server(): Server matches Deployment by id"
               deployment_name = d.name
-              filtered << s
+              filtered = [s]
               break
             # else we have to get the deployment by name and take the first that matches
             elsif deployment_name
@@ -464,7 +464,7 @@ module MaestroDev
               if d.name == deployment_name
                 @logger.debug "#{indent}get_server(): Matched Deployment (id=#{d_id}, name=#{d.name})"
                 deployment_id = d_id
-                filtered << s
+                filtered = [s]
                 break
               end
             end
