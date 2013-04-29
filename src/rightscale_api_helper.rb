@@ -189,9 +189,10 @@ module MaestroDev
             :timeout_reset => timeout_reset,
             :indent => "#{indent}  "
         )
-        instance = @client.servers(:id => server_id).show
+        # replace the instance with a newer one, that'll have updated information after the wait
+        instance = @client.servers(:id => server_id).show.current_instance.show
         if !result.success
-          @logger.info "#{indent}start(): Started Server (id=#{server_id}, name=#{server_name}), but timed out waiting for state"
+          @logger.info "#{indent}start(): Started Server (id=#{server_id}, name=#{server_name}), but failed to wait for state"
           return Result.new(:success => false, :errors => result.errors, :value => instance)
         end
         @logger.info "#{indent}start(): Started Server (id=#{server_id}, name=#{server_name})"
@@ -1061,7 +1062,7 @@ module MaestroDev
           puts "Server (id=#{options[:server_id]} name=#{options[:server_name]}) launched"
         end
       else
-        puts "Server (id=#{options[:server_id]} name=#{options[:server_name]}) started"
+        puts "Server (id=#{options[:server_id]} name=#{options[:server_name]}) start had errors"
       end
 
       # print errors and notices
