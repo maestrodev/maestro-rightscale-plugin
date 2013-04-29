@@ -333,14 +333,19 @@ module MaestroDev
           :indent => "#{indent}  "
       )
 
+      if timeout <= 0
+        if server.state != state
+          # not in the right state and no time to wait, so fast fail here
+          return Result.new(:success => false, :errors => [Exception.new("Timeout <= 0 when waiting for Server (id=#{server_id}, name=#{server.name}) in deployment (id=#{deployment_id}, name=#{deployment_name}) to reach state #{state}")])
+        else
+          # if we're already in the right state, then return true
+          return Result.new(:success => true, :value => server)
+        end
+      end
+
       if server.nil?
         @logger.error "#{indent}wait(): Server (id=#{server_id}, name=#{server.name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name} state=#{server.state}) cannot be found"
         return Result.new(:success => false, :errors => [Exception.new("Cannot find Server (id=#{server_id}, name=#{server.name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}) to wait for")])
-      end
-
-      # if timeout interval is 0, just return
-      if timeout_interval == 0
-        return Result.new(:success => false, :errors => [Exception.new("Timeout reached for Server (id=#{server_id}, name=#{server.name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}) to reach state #{state}, currently in state #{server.state}")], :value => server)
       end
 
       @logger.info "#{indent}wait(): Waiting for Server (id=#{server_id}, name=#{server_name}) to enter state #{state}"
@@ -576,8 +581,8 @@ module MaestroDev
       deployment_id = args[:deployment_id]
       deployment_name = args[:deployment_name]
       wait_until_started = args[:wait_until_started]
-      timeout = args[:timeout]
-      timeout_interval = args[:timeout_interval] || DEFAULT_TIMEOUT
+      timeout = args[:timeout] || DEFAULT_TIMEOUT
+      timeout_interval = args[:timeout_interval] || DEFAULT_INTERVAL
       timeout_reset = args[:timeout_reset]
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
@@ -629,22 +634,28 @@ module MaestroDev
       }
 
       if wait_until_started
-        timeout_interval_left = timeout_interval
+        timeout_left = timeout
         start_time = Time.now.to_i
 
         # waiting for each server in the deployment
         launched_servers.each {|server|
           server_id = (File.basename server.href).to_i
 
-          @logger.info "#{indent}start_servers_in_deployment(): Waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
+          # if timeout interval is 0, just return
+          if timeout_left == 0
+            @logger.info "#{indent}start_servers_in_deployment(): Timed out waiting for other servers in the deployment, no time left to wait for Server (id=#{server_id}, name=#{server.name}) in deployment (id=#{deployment_id}, name=#{deployment_name}) to reach state #{state}, currently in state #{server.state}"
+            return Result.new(:success => false, :errors => [Exception.new("Timed out waiting for other servers in the deployment, no time left to wait for Server (id=#{server_id}, name=#{server.name}) in deployment (id=#{deployment_id}, name=#{deployment_name}) to reach state #{state}, currently in state #{server.state}")], :value => server)
+          else
+            @logger.info "#{indent}start_servers_in_deployment(): Waiting for Server (id=#{server_id}, name=#{server.name}) in deployment (id=#{deployment_id}, name=#{deployment_name})"
+          end
 
           begin
             result = wait(
                 :state => STATE_OPERATIONAL,
                 :server_id => server_id,
                 :show_progress => show_progress,
-                :timeout => timeout,
-                :timeout_interval => timeout_interval_left,
+                :timeout => timeout_left,
+                :timeout_interval => timeout_interval,
                 :timeout_reset => timeout_reset,
                 :indent => "#{indent}  "
             )
@@ -653,11 +664,11 @@ module MaestroDev
             # left to wait
             end_time=Time.now.to_i
             time_elapsed = end_time - start_time
-            timeout_interval_left -= time_elapsed
-            if timeout_interval_left < 0
-              timeout_interval_left = 0
+            timeout_left -= time_elapsed
+            if timeout_left < 0
+              timeout_left = 0
             end
-            @logger.debug "#{indent}start_servers_in_deployment(): timeout_interval_left=#{timeout_interval_left} start_time=#{start_time} end_time=#{end_time} time_elapsed=#{time_elapsed}"
+            @logger.debug "#{indent}start_servers_in_deployment(): timeout_left=#{timeout_left} start_time=#{start_time} end_time=#{end_time} time_elapsed=#{time_elapsed}"
 
             if !result.success
               @logger.error "#{indent}start_servers_in_deployment(): Timed out waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
@@ -691,8 +702,8 @@ module MaestroDev
       deployment_id = args[:deployment_id]
       deployment_name = args[:deployment_name]
       wait_until_stopped = args[:wait_until_stopped]
-      timeout = args[:timeout]
-      timeout_interval = args[:timeout_interval] || DEFAULT_TIMEOUT
+      timeout = args[:timeout] || DEFAULT_TIMEOUT
+      timeout_interval = args[:timeout_interval] || DEFAULT_INTERVAL
       timeout_reset = args[:timeout_reset]
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
@@ -741,14 +752,20 @@ module MaestroDev
       }
 
       if wait_until_stopped
-        timeout_interval_left = timeout_interval
+        timeout_left = timeout
         start_time = Time.now.to_i
 
         # waiting for each server in the deployment that we just stopped or we're actively trying to shut down
         wait_for_servers.each {|server|
           server_id = (File.basename server.href).to_i
 
-          @logger.info "#{indent}stop_servers_in_deployment(): Waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
+          # if timeout interval is 0, just return
+          if timeout_left == 0
+            @logger.info "#{indent}stop_servers_in_deployment(): Timed out waiting for other servers in the deployment, no time left to wait for Server (id=#{server_id}, name=#{server.name}) in deployment (id=#{deployment_id}, name=#{deployment_name}) to reach state #{state}, currently in state #{server.state}"
+            return Result.new(:success => false, :errors => [Exception.new("Timed out waiting for other servers in the deployment, no time left to wait for Server (id=#{server_id}, name=#{server.name}) in deployment (id=#{deployment_id}, name=#{deployment_name}) to reach state #{state}, currently in state #{server.state}")], :value => server)
+          else
+            @logger.info "#{indent}stop_servers_in_deployment(): Waiting for Server (id=#{server_id}, name=#{server.name}) in deployment (id=#{deployment_id}, name=#{deployment_name})"
+          end
 
           begin
             result = wait(
@@ -765,11 +782,11 @@ module MaestroDev
             # left to wait
             end_time=Time.now.to_i
             time_elapsed = end_time - start_time
-            timeout_interval_left -= time_elapsed
-            if timeout_interval_left < 0
-              timeout_interval_left = 0
+            timeout_left -= time_elapsed
+            if timeout_left < 0
+              timeout_left = 0
             end
-            @logger.debug "#{indent}stop_servers_in_deployment(): timeout_interval_left=#{timeout_interval_left} start_time=#{start_time} end_time=#{end_time} time_elapsed=#{time_elapsed}"
+            @logger.debug "#{indent}stop_servers_in_deployment(): timeout_left=#{timeout_left} start_time=#{start_time} end_time=#{end_time} time_elapsed=#{time_elapsed}"
 
             if !result.success
               @logger.error "#{indent}stop_servers_in_deployment(): Timed out waiting for Server (name=#{server.name}, id=#{server_id}) in deployment (name=#{deployment_name}, id=#{deployment_id})"
