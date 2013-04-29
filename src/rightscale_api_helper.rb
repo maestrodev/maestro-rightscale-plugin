@@ -103,7 +103,7 @@ module MaestroDev
             @client.log LogWrapper.new(@logger)
           end
         rescue Exception => e
-          @logger.error "connect(): Exception: #{e.message}"
+          @logger.error "#{indent}connect(): Exception: #{e.message}"
           raise e
         end
       else
