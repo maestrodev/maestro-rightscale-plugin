@@ -498,7 +498,7 @@ module MaestroDev
     # get the id of a server object returned by the API
     def get_server_id(server)
       if (server)
-        (File.basename server.href).to_i
+        return (File.basename server.href).to_i
       end
       return nil
     end
