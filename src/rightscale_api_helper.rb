@@ -2,6 +2,7 @@ require 'right_api_client'
 require 'rubygems'
 require 'logger'
 require 'optparse'
+require 'open-uri'
 
 module MaestroDev
   class RightScaleApiHelper
@@ -21,6 +22,9 @@ module MaestroDev
     STATE_TERMINATING = 'terminating'
     STATE_DECOMMISSIONING = 'decommissioning'
 
+    SESSION_PATH = '/api/session'
+    ACCOUNTS_PATH = '/api/accounts'
+
     @trace = false,
     @email, @password, @account_id, @oauth_url, @refresh_token, @api_url = DEFAULT_API_URL, @api_version = DEFAULT_API_VERSION
 
@@ -32,14 +36,20 @@ module MaestroDev
     # +:account_id+:: RightScale account id
     # +:api_url+:: RightScale API URL
     # +:api_version+:: RightScale API Version (default: 1.5)
+    # +:delay_connect+:: do not connect on initialization (currently only used internally for CLI)
     # +:verbose+:: Enable DEBUG level logging
     def initialize(args)
+      delay_connect = args[:delay_connect] || false
       @logger = args[:logger] || Logger.new(STDOUT)
+      @verbose = args[:verbose]
       @trace = args[:trace]
+
+      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      @logger.debug "new(#{args_no_pass.inspect})"
 
       # if this is a logger instance, set the level
       if (@logger.instance_of?Logger)
-        if args[:verbose]
+        if @verbose || @trace
           @logger.level = Logger::DEBUG
           @logger.debug 'Setting log level to DEBUG'
         else
@@ -47,15 +57,17 @@ module MaestroDev
         end
       end
 
-      # initialize accepts all connect settings
-      if args[:account_id] && ((args[:email] && args[:password]) || args[:refresh_token])
-        connect(args)
-      else
-        # we don't have sufficient credentials, so throw error
-        if !args[:account_id]
-          raise InsufficientCredentials.new('Account ID was not provided');
+      if !delay_connect
+        # initialize accepts all connect settings
+        if args[:account_id] && ((args[:email] && args[:password]) || args[:refresh_token])
+          connect(args)
         else
-          raise InsufficientCredentials.new('Either Email and Password must both be specified or refresh_token must be specified');
+          # we don't have sufficient credentials, so throw error
+          if !args[:account_id]
+            raise InsufficientCredentials.new('Account ID was not provided');
+          else
+            raise InsufficientCredentials.new('Either Email and Password must both be specified or refresh_token must be specified');
+          end
         end
       end
     end
@@ -809,45 +821,108 @@ module MaestroDev
     # Get an access token, which can be used as a session cookie
     # Params
     # +args+:: hash of params listed below
-    # +:oauth_url+:: OAuth URL needed to obtain an access token from a refresh token
-    # +:refresh_token+:: The refresh token
+    # +:oauth_url+:: OAuth URL needed to obtain an access token from a refresh token (required if using refresh_token)
+    # +:refresh_token+:: The refresh token (required if using refresh_token)
+    # +:api_url+:: The base API url (required if using user/pass)
+    # +:email+:: if a refresh token is not specified, then we'll use regular creds (required if using user/pass)
+    # +:password+:: if a refresh token is not specified, then we'll use regular creds (required if using user/pass)
     # +:api_version+:: The API version to use (default is 1.5)
     # +:indent+:: Used internally to indent log messages for pretty call stack tracing
     def get_access_token(args)
+      api_url = args[:api_url] || DEFAULT_API_URL
       oauth_url = args[:oauth_url] || DEFAULT_OAUTH_URL
       refresh_token = args[:refresh_token]
+      email = args[:email]
+      password = args[:password]
+      account_id = args[:account_id] || @account_id
       api_version = args[:api_version] || DEFAULT_API_VERSION
+      timeout = args[:timeout] || DEFAULT_TIMEOUT
       indent = args[:indent] || ''
 
       args_no_pass = args.delete_if {|key, _| key == "password" }
       @logger.debug "#{indent}get_access_token(#{args_no_pass.inspect})"
 
-      begin
-        @client = RestClient::Resource.new(oauth_url, :timeout => -1)
-        if @trace
-          RestClient.log = LogWrapper.new(@logger)
-        end
+      if @trace
+        RestClient.log = LogWrapper.new(@logger)
+      end
 
-        @client.post("grant_type=refresh_token&refresh_token=#{refresh_token}",
-            :X_API_VERSION => api_version,
-            :content_type => 'application/x-www-form-urlencoded',
-            :accept => '*/*'
-        ) do |response, request, result|
-          @logger.debug "#{indent}get_access_token(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
+      if refresh_token
+        begin
+          @client = RestClient::Resource.new(oauth_url, :timeout => timeout)
 
-          data = JSON.parse(response)
-          case response.code
-            when 200
-              @logger.debug "#{indent}get_access_token(): got access token: #{data['access_token']}"
-              return Result.new(:success => true, :value => data['access_token'])
-            else
-              @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
-              return Result.new(:success => false, :errors => [Exception.new(data['error_description'])], :value => data)
+          @client.post("grant_type=refresh_token&refresh_token=#{refresh_token}",
+              :X_API_VERSION => api_version,
+              :content_type => 'application/x-www-form-urlencoded',
+              :accept => '*/*'
+          ) do |response, request, result|
+            @logger.debug "#{indent}get_access_token(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
+
+            data = JSON.parse(response)
+                case response.code
+                  when 200
+                    @logger.debug "#{indent}get_access_token(): got access token: #{data['access_token']}"
+                    return Result.new(:success => true, :value => data['access_token'])
+                  else
+                    @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
+                    return Result.new(:success => false, :errors => [Exception.new(data['error_description'])], :value => data)
+                end
           end
+        rescue RestClient::Exception => e
+          @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
+          return Result.new(:success => false, :errors => [Exception.new(e.response['error_description'])], :value => e.response)
+        rescue => e
+          @logger.error "#{indent}get_access_token(): error while getting access token: #{e}"
+          return Result.new(:success => false, :errors => [Exception.new(e.message)])
         end
-      rescue => e
-        @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
-        return Result.new(:success => false, :errors => [Exception.new(e.response['error_description'])], :value => e.response)
+      elsif email && password && account_id
+        begin
+          #curl -v -X GET -H X-API-Version:1.5 -d 'username=user@@maestrodev.com' -d 'password=pass' -d 'account_href=/api/accounts/$id' https://us-3.rightscale.com/api/session
+          @client = RestClient::Resource.new("#{api_url}#{SESSION_PATH}", :timeout => timeout)
+
+          @client.post("email=#{URI::encode(email)}&password=#{URI::encode(password)}&account_href=#{ACCOUNTS_PATH}/#{account_id}",
+                       :X_API_VERSION => api_version,
+                       :accept => '*/*'
+          ) do |response, request, result|
+            @logger.debug "#{indent}get_access_token(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
+
+            data = result.to_hash
+            case response.code
+              when 204
+                cookies = nil
+                if data['set-cookie']
+                  cookies = data['set-cookie']
+                elsif data['Set-Cookie']
+                  cookies = data['Set-Cookie']
+                else
+                  @logger.error "#{indent}get_access_token(): Couldn't find access token in response: #{data.inspect}"
+                  return Result.new(:success => false, :errors => [Exception.new("Couldn't find access token in response")], :value => data)
+                end
+
+                # find the correct cookie, strip out the access token, URI decode to translate %3D back into =
+                access_token = nil;
+                cookies.each {|cookie|
+                  if matches = /rs_gbl=([^;]+)/.match(cookie)
+                    access_token = URI::decode(matches[0][7..-1]) # strip the rs_gbl=
+                    break
+                  end
+                }
+
+                @logger.debug "#{indent}get_access_token(): got access token: #{access_token}"
+                return Result.new(:success => true, :value => access_token)
+              else
+                @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
+                return Result.new(:success => false, :errors => [Exception.new(data['error_description'])], :value => data)
+            end
+          end
+        rescue RestClient::Exception => e
+          @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
+          return Result.new(:success => false, :errors => [Exception.new(e.response['error_description'])], :value => e.response)
+        rescue => e
+          @logger.error "#{indent}get_access_token(): error while getting access token: #{e}"
+          return Result.new(:success => false, :errors => [Exception.new(e.message)])
+        end
+      else
+        return Result.new(:success => false, :errors => [Exception.new('No refresh token was specified, nor was a username/password/account')])
       end
     end
 
@@ -917,7 +992,7 @@ module MaestroDev
         options[:refresh_token] = t
       end
       opts.separator ''
-      opts.on('--username [username]', 'Username') do |u|
+      opts.on('--username [email]', 'Username') do |u|
         options[:email] = u
       end
       opts.on('--password [password]', 'Password') do |p|
@@ -941,6 +1016,7 @@ module MaestroDev
       opts.separator 'Operation options:'
 
       opts.on('--operation operation', 'Operation to invoke\n',
+              'get-access-token - Get the access token using either the --refresh-token, or --username and --password',
               'get-server - Get the server specified by --server-id or --server-name',
               'start-server - Start the server specified by --server-id or --server-name',
               'stop-server - Stop the server specified by --server-id or --server-name',
@@ -1019,6 +1095,11 @@ module MaestroDev
 
     helper = nil
     begin
+      # if we're just getting an access token, we don't want to connect the client
+      if options[:operation] == 'get-access-token'
+        options[:delay_connect] = true
+      end
+
       helper = RightScaleApiHelper.new(options)
     rescue InsufficientCredentials => e
       # looks like we didn't have sufficient credentials
@@ -1026,11 +1107,34 @@ module MaestroDev
       exit 1
     rescue => e
       # looks like we didn't have sufficient credentials
-      puts "Problem creating AP clientI: #{e.message}"
+      puts "Problem creating API client: #{e.message}"
       exit 1
     end
 
-    if options[:operation] == 'get-server'
+    if options[:operation] == 'get-access-token'
+      result = helper.get_access_token(options)
+      if result.success
+        puts "Access token=#{result.value}"
+        return
+      end
+
+      puts 'There were errors getting the access token'
+
+      # print errors and notices
+      if !result.errors.nil?
+        puts "#{result.errors.size} Errors getting access token"
+        result.errors.each{|error|
+          puts "  #{error.message}, backtrace=#{error.backtrace}"
+        }
+      end
+
+      if !result.notices.nil?
+        puts "#{result.notices.size} Notices getting access token"
+        result.notices.each{|notice|
+          puts "  #{notice.inspect}"
+        }
+      end
+    elsif options[:operation] == 'get-server'
       server = helper.get_server(options)
       puts "Server name=#{server.name} description=#{server.description} state=#{server.state} created_at=#{server.created_at} updated_at=#{server.updated_at}"
       if server.state == MaestroDev::RightScaleApiHelper::STATE_OPERATIONAL
