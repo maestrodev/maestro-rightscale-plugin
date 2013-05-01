@@ -22,6 +22,7 @@ module MaestroDev
     STATE_TERMINATING = 'terminating'
     STATE_DECOMMISSIONING = 'decommissioning'
 
+    CLOUDFLOW_PROCESS_PATH = '/api/cloud_flow/processes'
     SESSION_PATH = '/api/session'
     ACCOUNTS_PATH = '/api/accounts'
 
@@ -44,9 +45,6 @@ module MaestroDev
       @verbose = args[:verbose]
       @trace = args[:trace]
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
-      @logger.debug "new(#{args_no_pass.inspect})"
-
       # if this is a logger instance, set the level
       if (@logger.instance_of?Logger)
         if @verbose || @trace
@@ -56,6 +54,9 @@ module MaestroDev
           @logger.level = Logger::INFO
         end
       end
+
+      args_no_pass = args.reject {|key, _| key == :password }
+      @logger.debug "new(#{args_no_pass.inspect})"
 
       if !delay_connect
         # initialize accepts all connect settings
@@ -76,7 +77,7 @@ module MaestroDev
       indent = args[:indent] || ''
       cookies = args[:cookies] || {}
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}connect(#{args_no_pass.inspect})"
 
       # Initializing all instance variables from hash, else use what's already in the instance vars
@@ -144,7 +145,7 @@ module MaestroDev
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}start(#{args_no_pass.inspect})"
 
       server = get_server(
@@ -243,7 +244,7 @@ module MaestroDev
       timeout_reset = args[:timeout_reset]
       indent = args[:indent] || ''
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}stop(#{args_no_pass.inspect})"
 
       server = get_server(
@@ -336,7 +337,7 @@ module MaestroDev
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}wait(#{args_no_pass.inspect})"
 
       server = get_server(
@@ -435,7 +436,7 @@ module MaestroDev
       deployment_name = args[:deployment_name]
       indent = args[:indent] || ''
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}get_server(#{args_no_pass.inspect})"
 
       if server_id and server_id > 0
@@ -518,7 +519,7 @@ module MaestroDev
       deployment_name = args[:deployment_name]
       indent = args[:indent] || ''
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}get_deployment(#{args_no_pass.inspect})"
 
       deployment = nil
@@ -563,7 +564,7 @@ module MaestroDev
       deployment_name = args[:deployment_name]
       indent = args[:indent] || ''
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}get_servers_in_deployment(#{args_no_pass.inspect})"
       @logger.debug "#{indent}get_servers_in_deployment(): Getting servers in Deployment (id=#{deployment_id}, name=#{deployment_name})"
 
@@ -601,7 +602,7 @@ module MaestroDev
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}start_servers_in_deployment(#{args_no_pass.inspect})"
       @logger.info "#{indent}start_servers_in_deployment(): Starting Deployment (id=#{deployment_id}, name=#{deployment_name})"
 
@@ -722,7 +723,7 @@ module MaestroDev
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
 
-      args_no_pass = args.delete_if {|key, _| key == 'password' }
+      args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}stop_servers_in_deployment(#{args_no_pass.inspect})"
       @logger.debug "#{indent}stop_servers_in_deployment(#{args.inspect})"
       @logger.info "#{indent}stop_servers_in_deployment(): Stopping Deployment (id=#{deployment_id}, name=#{deployment_name})"
@@ -818,6 +819,288 @@ module MaestroDev
     end
 
     ##
+    # Create a CloudFlow process
+    # Params
+    # +args+:: hash of params listed below
+    # +:cloudflow_name+:: The CloudFlow name
+    # +:cloudflow_inputs+:: The CloudFlow inputs as a hash of key => value
+    # +:cloudflow_definition+:: The CloudFlow definition
+    # +:wait_until_complete+:: Whether or not to wait until the CloudFlow finishes executing before returning
+    # +:timeout+:: The maximum amount of time to wait (in seconds) for the servers to reach Inactive state
+    # +:timeout_interval+:: The amount of time to wait (in seconds) between requests for servers' states
+    # +:timeout_reset+:: Whether or not to reset the timeout when a server's state changes (e.g. pending -> booting)
+    # +:show_progress+:: Whether or not to log progress checks when waiting for Operational servers' state
+    # +:indent+:: Used internally to indent log messages for pretty call stack tracing
+    def create_cloudflow_process(args)
+      # for convenience
+      cloudflow_name = args[:cloudflow_name]
+      cloudflow_inputs = args[:cloudflow_inputs]
+      cloudflow_definition = args[:cloudflow_definition]
+      wait_until_complete = args[:wait_until_complete]
+      timeout = args[:timeout] || DEFAULT_TIMEOUT
+      timeout_interval = args[:timeout_interval] || DEFAULT_INTERVAL
+      timeout_reset = args[:timeout_reset]
+      access_token = args[:access_token]
+      show_progress = args[:show_progress]
+      api_version = DEFAULT_API_VERSION
+      indent = args[:indent] || ''
+
+      args_no_pass = args.reject {|key, _| key == :password }
+      @logger.debug "#{indent}create_cloudflow_process(#{args_no_pass.inspect})"
+      @logger.info "#{indent}create_cloudflow_process(): Creating CloudFlow process (name=#{cloudflow_name})"
+
+      errors = []
+      notices = []
+      location = nil
+      access_token = nil
+
+      begin
+        post_data = Hash.new();
+
+        client = RestClient::Resource.new("#{@api_url}#{CLOUDFLOW_PROCESS_PATH}", :timeout => timeout)
+        if @trace
+          RestClient.log = LogWrapper.new(@logger)
+        end
+
+        if cloudflow_inputs
+          if !cloudflow_inputs.is_a?(Hash)
+            @logger.error "#{indent}create_cloudflow_process(): CloudFlow inputs are invalid"
+            return Result.new(:success => false, :errors => [Exception.new('CloudFlow inputs are invalid')])
+          else
+            cloudflow_inputs.each{|key, value|
+              post_data["cloud_flow_process[inputs]#{key}"] = value
+            }
+          end
+        end
+
+        if !access_token
+          # get an access token
+          new_args = args
+          new_args[:indent => "#{indent}  "]
+          result = get_access_token(new_args)
+          if !result.success
+            @logger.error "#{indent}get_cloudflow_process(): No credentials provided}"
+            return Result.new(:success => false, :errors => [Exception.new('No credentials provided')], :value => result.to_hash)
+          end
+          access_token = result.value
+        end
+
+        # cloud_flow_process[name]=start_deploy_test1
+        # cloud_flow_process[inputs]['$deployment_id']=391022003
+        # cloud_flow_process[cloud_flow_definition]
+        post_data['cloud_flow_process[name]'] = cloudflow_name
+        post_data['cloud_flow_process[cloud_flow_definition]'] = cloudflow_definition
+        @logger.debug "#{indent}create_cloudflow_process(): Posting data: #{post_data.inspect}"
+        client.post(post_data,
+                     :X_API_VERSION => api_version,
+                     :content_type => 'application/x-www-form-urlencoded',
+                     :accept => '*/*',
+                     :cookie => ["rs_gbl=#{access_token}"]
+        ) do |response, request, result|
+          @logger.debug "#{indent}create_cloudflow_process(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
+
+          case response.code
+            when 201
+              #Location: /api/cloud_flow/processes/e22bd546b1ea1e12b79719227537a344
+              location = result["Location"]
+              @logger.debug "#{indent}create_cloudflow_process(): Successfully created CloudFlow process: #{location}"
+            when 403
+              @logger.error "#{indent}create_cloudflow_process(): #{response}"
+              return Result.new(:success => false, :errors => [Exception.new("#{response}")], :value => result.to_hash)
+            else
+              response_hash = nil
+              begin
+                response_hash = JSON.parse(response)
+              rescue => e
+                # do nothing
+              end
+
+              if response_hash && response_hash.is_a?(Hash) && response_hash.has_key?('summary')
+                @logger.error "#{indent}create_cloudflow_process(): Error creating CloudFlow process: summary: #{response_hash['summary']}"
+                return Result.new(:success => false, :errors => [Exception.new(response_hash['summary'])])
+              elsif result.to_hash.has_key?('create_cloudflow_process')
+                @logger.error "#{indent}create_cloudflow_process(): Error creating CloudFlow process: error_description: #{result.to_hash['error_description']}"
+                return Result.new(:success => false, :errors => [Exception.new(result.to_hash['error_description'])])
+              else
+                @logger.error "#{indent}create_cloudflow_process(): Error creating CloudFlow process: response: #{reponse.code} #{response}"
+                return Result.new(:success => false, :errors => [Exception.new("#{reponse.code} #{response}")])
+              end
+          end
+        end
+      rescue RestClient::Exception => e
+        @logger.error "#{indent}create_cloudflow_process(): Error creating CloudFlow process: #{e.response}"
+        return Result.new(:success => false, :errors => [Exception.new(e.response['error_description'])], :value => e.response)
+      rescue => e
+        @logger.error "#{indent}create_cloudflow_process(): Error creating CloudFlow process: #{e.message}"
+        return Result.new(:success => false, :errors => [e])
+      end
+
+      process_id = File.basename location
+
+      if wait_until_complete
+        args[:access_token] = access_token
+        begin
+          timeout_left = timeout
+          last_state = ''
+          while timeout_left
+            @logger.info "#{indent}create_cloudflow_process(): Waiting for CloudFlow process (id=#{process_id}, location=#{location})"
+            result = get_cloudflow_process(:process_id => process_id, :indent => "#{indent}  ", :timeout => timeout, :access_token => access_token)
+
+            if result.success
+              process = result.value
+              state = process['state']
+              @logger.debug "#{indent}create_cloudflow_process(): returned process is #{process}"
+
+              if state != last_state
+                last_state = state
+                if timeout_reset
+                  timeout_left = timeout
+                end
+
+                if show_progress
+                  @logger.info "#{indent}create_cloudflow_process(): Process state is now #{state}"
+                else
+                  @logger.debug "#{indent}create_cloudflow_process(): Process state is now #{state}"
+                end
+              else
+                if show_progress
+                  @logger.info "#{indent}create_cloudflow_process(): Process state is #{state} (#{timeout-timeout_left}/#{timeout})"
+                else
+                  @logger.debug "#{indent}create_cloudflow_process(): Process state is #{state} (#{timeout-timeout_left}/#{timeout})"
+                end
+              end
+
+              if state == 'terminated'
+                @logger.info "#{indent}create_cloudflow_process(): Process (id=#{process_id}, location=#{location}) is now stopped"
+                break
+              elsif state == 'in_error'
+                # FIXME - we should attempt to abort this CloudFlow
+                @logger.error "#{indent}create_cloudflow_process(): Process (id=#{process_id}, location=#{location}) had an error, attempting to cancel it"
+              end
+            else
+              @logger.error "#{indent}create_cloudflow_process(): Problem getting state for CloudFlow Process (id=#{process_id}, location=#{location}): #{result.errors.inspect}"
+              return Result.new(:success => true, :errors => result.errors, :notices => result.notices)
+            end
+
+            sleep timeout_interval
+            timeout_left -= timeout_interval
+          end
+        rescue => e
+          @logger.error "#{indent}create_cloudflow_process(): Error waiting for CloudFlow to terminate (id=#{process_id}, location=#{location}): #{e.message}"
+          return Result.new(:success => true, :errors => [e])
+        end
+      end
+
+      @logger.debug "#{indent}create_cloudflow_process(): Returning from CloudFlow create: #{location}"
+      return Result.new(:success => true, :value => process_id)
+    end
+
+    # Get a CloudFlow process
+    # Params
+    # +args+:: hash of params listed below
+    # +:process_id+:: The CloudFlow process id
+    # +:timeout+:: The maximum amount of time to wait (in seconds) for the servers to reach Inactive state
+    # +:indent+:: Used internally to indent log messages for pretty call stack tracing
+    #
+    # Example
+    # {
+    # "launched_at": "2012-06-11 17:12:18 UTC",
+    # "name": "test",
+    # "created_at": "2012-06-11 17:12:17 UTC",
+    # "updated_at": "2012-06-11 17:12:19 UTC",
+    # "max_process_size": 1048576,
+    # "links": [
+    #   {
+    #     "href": "/api/cloud_flow/processes/98ccfcdc3be811e1abbb81f6594ef2ec",
+    #     "rel": "self"
+    #   },
+    #   {
+    #     "href": "/api/cloud_flow/processes/98ccfcdc3be811e1abbb81f6594ef2ec/tasks",
+    #     "rel": "cloud_flow_tasks"
+    #   }
+    # ],
+    # "state": "running",
+    # "process_size": 3912
+    # }
+    def get_cloudflow_process(args)
+      # for convenience
+      process_id = args[:process_id]
+      timeout = args[:timeout] || DEFAULT_TIMEOUT
+      api_version = DEFAULT_API_VERSION
+      access_token = args[:access_token]
+      indent = args[:indent] || ''
+
+      args_no_pass = args.reject {|key, _| key == :password }
+      @logger.debug "#{indent}get_cloudflow_process(#{args_no_pass.inspect})"
+      @logger.info "#{indent}get_cloudflow_process(): Fetching CloudFlow process (process_id=#{process_id})"
+
+      # FIXME - return here if there is no process_id
+      if !process_id || process_id.nil?
+        return Result.new(:success => false, :errors => [Exception.new('CloudFlow process ID must be specified')])
+      end
+
+      location = nil
+
+      begin
+        if !access_token
+          # get an access token
+          new_args = args
+          new_args[:indent => "#{indent}  "]
+          result = get_access_token(new_args)
+          if !result.success
+            @logger.error "#{indent}get_cloudflow_process(): No credentials provided}"
+            return Result.new(:success => false, :errors => result.errors, :notices => result.notices)
+          end
+          access_token = result.value
+        end
+
+        # get the cloudflow
+        @client = RestClient::Resource.new("#{@api_url}#{CLOUDFLOW_PROCESS_PATH}/#{process_id}", :timeout => timeout)
+        if @trace
+          RestClient.log = LogWrapper.new(@logger)
+        end
+
+        @client.get(:X_API_VERSION => api_version, :accept => '*/*', :cookie => ["rs_gbl=#{access_token}"]
+        ) do |response, request, result|
+          @logger.debug "#{indent}get_cloudflow_process(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
+
+          response_hash = nil
+          begin
+            response_hash = JSON.parse(response)
+          rescue => e
+            # do nothing
+          end
+
+          case response.code
+            when 200
+              @logger.debug "#{indent}get_cloudflow_process(): Successfully fetched CloudFlow process: #{response}"
+              return Result.new(:success => true, :value => response_hash)
+            when 403
+              @logger.error "#{indent}get_cloudflow_process(): #{response}"
+              return Result.new(:success => false, :errors => [Exception.new("#{response}")], :value => result.to_hash)
+            else
+              if response_hash && response_hash.is_a?(Hash) && response_hash.has_key?('summary')
+                @logger.error "#{indent}get_cloudflow_process(): Error fetching CloudFlow process: summary: #{response_hash['summary']}"
+                return Result.new(:success => false, :errors => [Exception.new(response_hash['summary'])])
+              elsif result.to_hash.has_key?('error_description')
+                @logger.error "#{indent}get_cloudflow_process(): Error fetching CloudFlow process: error_description: #{result.to_hash['error_description']}"
+                return Result.new(:success => false, :errors => [Exception.new(result.to_hash['error_description'])])
+              else
+                @logger.error "#{indent}get_cloudflow_process(): Error fetching CloudFlow process: response: #{reponse.code} #{response}"
+                return Result.new(:success => false, :errors => [Exception.new("#{reponse.code} #{response}")])
+              end
+          end
+        end
+      rescue RestClient::Exception => e
+        @logger.error "#{indent}get_cloudflow_process(): Error fetching CloudFlow process: #{e.response}"
+        return Result.new(:success => false, :errors => [Exception.new(e.response['error_description'])], :value => e.response)
+      rescue => e
+        @logger.error "#{indent}get_cloudflow_process(): Error fetching CloudFlow process: #{e.message}"
+        return Result.new(:success => false, :errors => [e])
+      end
+    end
+
+    ##
     # Get an access token, which can be used as a session cookie
     # Params
     # +args+:: hash of params listed below
@@ -848,9 +1131,12 @@ module MaestroDev
 
       if refresh_token
         begin
-          @client = RestClient::Resource.new(oauth_url, :timeout => timeout)
+          client = RestClient::Resource.new(oauth_url, :timeout => timeout)
 
-          @client.post("grant_type=refresh_token&refresh_token=#{refresh_token}",
+          post_data = Hash.new()
+          post_data['grant_type'] = 'refresh_token'
+          post_data['refresh_token'] = refresh_token
+          client.post(post_data,
               :X_API_VERSION => api_version,
               :content_type => 'application/x-www-form-urlencoded',
               :accept => '*/*'
@@ -858,30 +1144,32 @@ module MaestroDev
             @logger.debug "#{indent}get_access_token(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
 
             data = JSON.parse(response)
-                case response.code
-                  when 200
-                    @logger.debug "#{indent}get_access_token(): got access token: #{data['access_token']}"
-                    return Result.new(:success => true, :value => data['access_token'])
-                  else
-                    @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
-                    return Result.new(:success => false, :errors => [Exception.new(data['error_description'])], :value => data)
-                end
+            case response.code
+              when 200
+                @logger.debug "#{indent}get_access_token(): got access token: #{data['access_token']}"
+                return Result.new(:success => true, :value => data['access_token'])
+              else
+                @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
+                return Result.new(:success => false, :errors => [Exception.new(data['error_description'])], :value => data)
+            end
           end
         rescue RestClient::Exception => e
           @logger.error "#{indent}get_access_token(): error while getting access token: #{e.response}"
           return Result.new(:success => false, :errors => [Exception.new(e.response['error_description'])], :value => e.response)
         rescue => e
           @logger.error "#{indent}get_access_token(): error while getting access token: #{e}"
-          return Result.new(:success => false, :errors => [Exception.new(e.message)])
+          return Result.new(:success => false, :errors => [e])
         end
       elsif email && password && account_id
         begin
           #curl -v -X GET -H X-API-Version:1.5 -d 'username=user@@maestrodev.com' -d 'password=pass' -d 'account_href=/api/accounts/$id' https://us-3.rightscale.com/api/session
-          @client = RestClient::Resource.new("#{api_url}#{SESSION_PATH}", :timeout => timeout)
+          client = RestClient::Resource.new("#{api_url}#{SESSION_PATH}", :timeout => timeout)
 
-          @client.post("email=#{URI::encode(email)}&password=#{URI::encode(password)}&account_href=#{ACCOUNTS_PATH}/#{account_id}",
-                       :X_API_VERSION => api_version,
-                       :accept => '*/*'
+          post_data = Hash.new()
+          post_data['email'] = email
+          post_data['password'] = password
+          post_data['account_href'] = "#{ACCOUNTS_PATH}/#{account_id}"
+          client.post(post_data, :X_API_VERSION => api_version, :accept => '*/*'
           ) do |response, request, result|
             @logger.debug "#{indent}get_access_token(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
 
@@ -919,7 +1207,7 @@ module MaestroDev
           return Result.new(:success => false, :errors => [Exception.new(e.response['error_description'])], :value => e.response)
         rescue => e
           @logger.error "#{indent}get_access_token(): error while getting access token: #{e}"
-          return Result.new(:success => false, :errors => [Exception.new(e.message)])
+          return Result.new(:success => false, :errors => [e])
         end
       else
         return Result.new(:success => false, :errors => [Exception.new('No refresh token was specified, nor was a username/password/account')])
@@ -1023,7 +1311,9 @@ module MaestroDev
               'get-deployment - Get the deployment specified by --deployment-id or --deployment-name',
               'get-servers-in-deployment - Get the servers in the deployment specified by --deployment-id or --deployment-name',
               'start-servers-in-deployment - Start the servers in the deployment specified by --deployment-id or --deployment-name',
-              'stop-servers-in-deployment - Stop the servers in the deployment specified by --deployment-id or --deployment-name'
+              'stop-servers-in-deployment - Stop the servers in the deployment specified by --deployment-id or --deployment-name',
+              'get-cloudflow-process - Get the specified CloudFlow process',
+              'create-cloudflow-process - Create the specified CloudFlow process using --cloudflow-name, --cloudflow-inputs, --cloudflow-definition'
       ) do |operation|
         options[:operation] = operation
       end
@@ -1047,6 +1337,34 @@ module MaestroDev
       end
       opts.on('--deployment-name [name]', 'Deployment Name') do |n|
         options[:deployment_name] = n
+      end
+
+      opts.separator ''
+      opts.separator 'CloudFlow options:'
+
+      opts.on('--process-id [id]', String, 'CloudFlow Process ID') do |i|
+        options[:process_id] = i
+      end
+      opts.on('--cloudflow-name [name]', String, 'CloudFlow Name') do |i|
+        options[:cloudflow_name] = i
+      end
+      opts.on('--cloudflow-inputs [input,input,input]', Array, 'CloudFlow Input (example: [$x]=value *becomes* cloud_flow_process[inputs][$x]=value)') do |a|
+        hash = Hash.new()
+        a.each{|input|
+          key, value = input.split(/=/)
+          hash[key] = value
+        }
+        options[:cloudflow_inputs] = hash
+      end
+      opts.on('--cloudflow-definition [definition]', String, 'CloudFlow Definition (either a string or a filename prepended with @)') do |d|
+        if d.start_with?("@")
+          options[:cloudflow_definition] = IO.read(d[1..-1])
+        else
+          options[:cloudflow_definition] = d
+        end
+      end
+      opts.on('--wait-until-complete', 'Wait until the CloudFlow has completed before returning') do |w|
+        options[:wait_until_complete] = w
       end
 
       opts.separator ''
@@ -1103,11 +1421,13 @@ module MaestroDev
       helper = RightScaleApiHelper.new(options)
     rescue InsufficientCredentials => e
       # looks like we didn't have sufficient credentials
-      puts "Error connecting to API: #{e}"
+      puts "Error connecting to API: #{e.message}"
+      puts "#{e.backtrace.inspect}" if options[:verbose] || options[:trace]
       exit 1
     rescue => e
       # looks like we didn't have sufficient credentials
       puts "Problem creating API client: #{e.message}"
+      puts "#{e.backtrace.inspect}" if options[:verbose] || options[:trace]
       exit 1
     end
 
@@ -1302,6 +1622,48 @@ module MaestroDev
             puts "  #{notice.inspect}"
           }
         end
+      end
+    elsif options[:operation] == 'get-cloudflow-process'
+      result = helper.get_cloudflow_process(options)
+      if result.success
+        cloudflow_process = result.value
+        puts "CloudFlow Process:"
+        puts "#{cloudflow_process.inspect}"
+      end
+
+      if !result.errors.nil?
+        puts "#{result.errors.size} Errors getting CloudFlow process (id=#{options[:process_id]})"
+        result.errors.each{|error|
+          puts "  #{error.message}, backtrace=#{error.backtrace}"
+        }
+      end
+
+      if !result.notices.nil?
+        puts "#{result.notices.size} Notices getting CloudFlow process (id=#{options[:process_id]})"
+        result.notices.each{|notice|
+          puts "  #{notice.inspect}"
+        }
+      end
+    elsif options[:operation] == 'create-cloudflow-process'
+      puts "Creating CloudFlow with definition:\n#{options[:cloudflow_definition]}" if options[:verbose] || options[:trace]
+      result = helper.create_cloudflow_process(options)
+      if result.success
+        cloudflow_process_id = result.value
+        puts "CloudFlow Process ID: #{cloudflow_process_id}"
+      end
+
+      if !result.errors.nil?
+        puts "#{result.errors.size} Errors creating CloudFlow process (id=#{options[:process_id]})"
+        result.errors.each{|error|
+          puts "  #{error.message}, backtrace=#{error.backtrace}"
+        }
+      end
+
+      if !result.notices.nil?
+        puts "#{result.notices.size} Notices creating CloudFlow process (id=#{options[:process_id]})"
+        result.notices.each{|notice|
+          puts "  #{notice.inspect}"
+        }
       end
     else
       puts parser.help
