@@ -9,7 +9,6 @@ module MaestroDev
       'rightscale'
     end
 
-    # FIXME - convert everything over to allowing RightScale Refresh Tokens instead of username/password
     def validate_base_fields(missing_fields)
       if get_field('account_id').nil?
         missing_fields << 'account_id'
@@ -21,7 +20,7 @@ module MaestroDev
         # if not refresh token, but either username/password we'll specify which one
         if get_field('username').nil?
           missing_fields << 'username'
-        else
+        elsif get_field('password').nil?
           missing_fields << 'password'
         end
       end
@@ -107,7 +106,7 @@ module MaestroDev
       
       client = RightScaleApiHelper.new(
           :account_id => account_id,
-          :username => username,
+          :email => username,
           :password => password,
           :api_url => api_url,
           :oauth_url => oauth_url,
@@ -118,73 +117,97 @@ module MaestroDev
       return client
     end
 
-    # TODO: refactor to use helper, the trim down
     def get_server
       Maestro.log.info "Retrieving RightScale server information into the Composition"
 
       # TODO: much duplication with start, but refactor after other changes for deployments land
 
-      server_name = get_field('nickname')
-      # TODO: should be used, or make nickname required?
-      server_id = get_field('server_id')
-
-      validate_fields(server_id)
+      # make sure we have all the necessary fields
+      validate_server_fields()
       return if error?
 
-      begin
-        init_server_connection()
-      rescue RestClient::Unauthorized => e
-        set_error "Invalid credentials provided: #{e.message}"
-        return
+      client = get_client()
+
+      server_id = get_field('server_id')
+      server_name = get_field('nickname')
+      deployment_id = get_field('deployment_id')
+      deployment_name = get_field('deployment_name')
+
+      if server_id
+        write_output "Looking up server by id=#{server_id}\n"
+      else
+        if deployment_id
+          write_output "Looking up server by nickname=#{server_name} deployment_id=#{deployment_id}\n"
+        else
+          write_output "Looking up server by nickname=#{server_name} deployment_name=#{deployment_name}\n"
+        end
       end
 
-      server = @client.servers.index(:filter => ["name==#{server_name}"]).first
+      server = client.get_server(
+          :server_id => server_id,
+          :server_name => server_name,
+          :deployment_id => deployment_id,
+          :deployment_name => deployment_name
+      )
       if server.nil?
-        set_error "No server matches #{server_name}"
+        write_output "Error finding server by id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}\n"
+        set_error "Error finding server by id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}\n"
         return
       end
-
-      Maestro.log.info "Found server, '#{server.name}'."
-
       server_id = get_server_id(server)
 
       set_field('rightscale_server_id', server_id) # deprecated
       set_field("#{provider}_ids", (get_field("#{provider}_ids") || []) << server_id)
       set_field("cloud_ids", (get_field("cloud_ids") || []) << server_id)
 
-      context_server = {
-          :name => server.name,
-          :state => server.state,
-      }
-      if server.respond_to? :current_instance
+      if server.state != MaestroDev::RightScaleApiHelper::STATE_OPERATIONAL
+        write_output "Server id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name} in not currently operational\n"
+
+        context_servers = read_output_value('rightscale_servers') || {}
+        context_servers[server_id] = {
+            :name => server.name,
+            :state => server.state,
+            :public_ip_address => nil,
+            :private_ip_address => nil,
+            :multi_cloud_image => nil,
+            :server_template => nil,
+            :deployment => nil,
+            :resource_uid => nil
+        }
+        save_output_value('rightscale_servers', context_servers)
+        set_field('state', server.state)
+
+        write_output "Server in state #{server.state}\n"
+
+      else
         instance = server.current_instance.show
         ip_address = instance.public_ip_addresses.first
         private_ip_address = instance.private_ip_addresses.first
 
-        # save some values in the workitem so they are accessible for deprovision and other tasks
-        # using same naming as the fog plugin
-        set_field('rightscale_ip_address', ip_address) # deprecated
-        set_field('rightscale_private_ip_address', private_ip_address) # deprecated
+        set_field('rightscale_ip_address', ip_address)
+        set_field('rightscale_private_ip_address', private_ip_address)
 
         set_field("#{provider}_private_ips", (get_field("#{provider}_private_ips") || []) << private_ip_address)
         set_field("cloud_private_ips", (get_field("cloud_private_ips") || []) << private_ip_address)
         set_field("#{provider}_ips", (get_field("#{provider}_ips") || []) << ip_address)
         set_field("cloud_ips", (get_field("cloud_ips") || []) << ip_address)
-        context_server = {
+
+        context_servers = read_output_value('rightscale_servers') || {}
+        context_servers[server_id] = {
+            :name => server.name,
+            :state => server.state,
             :public_ip_address => ip_address,
             :private_ip_address => private_ip_address,
             :multi_cloud_image => instance.multi_cloud_image.show.name,
             :server_template => instance.server_template.show.name,
             :deployment => instance.deployment.show.name,
             :resource_uid => instance.resource_uid
-        }.merge context_server
+        }
+        save_output_value('rightscale_servers', context_servers)
+        set_field('state', server.state)
+
+        write_output "Server up at #{ip_address}\n"
       end
-
-      write_output "Server information: #{PP.pp context_server, out = ''}\n"
-
-      context_servers = read_output_value('rightscale_servers') || {}
-      context_servers[server_id] = context_server
-      save_output_value('rightscale_servers', context_servers)
 
       Maestro.log.info "***********************Completed RightScale.get_server***************************"
     end
@@ -205,13 +228,23 @@ module MaestroDev
       deployment_name = get_field('deployment_name')
       wait_until_started = get_field('wait_until_started')
 
-      if server_id
+      if server_id && server_id.to_i > 0
         write_output "Looking up server by id=#{server_id}\n"
-      else
+      elsif server_name && server_name != ''
         if deployment_id
           write_output "Looking up server by nickname=#{server_name} deployment_id=#{deployment_id}\n"
         else
           write_output "Looking up server by nickname=#{server_name} deployment_name=#{deployment_name}\n"
+        end
+      else
+        # get the last previously started server
+        sid = get_field('rightscale_server_id')
+        if sid && sid.to_i > 0
+          server_id = sid
+          write_output "Using previously started RightScale server id=#{server_id}\n"
+        else
+          set_error 'Unable to find server id or name to start.'
+          return
         end
       end
 
@@ -221,6 +254,11 @@ module MaestroDev
           :deployment_id => deployment_id,
           :deployment_name => deployment_name
       )
+      if server.nil?
+        write_output "Error finding server by id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}\n"
+        set_error "Error finding server by id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}\n"
+        return
+      end
       server_id = get_server_id(server)
 
       write_output "Requesting server start for id=#{server_id}\n"
@@ -288,9 +326,9 @@ module MaestroDev
       deployment_name = get_field('deployment_name')
       wait_until_stopped = get_field('wait_until_stopped')
 
-      if server_id
+      if server_id && server_id.to_i > 0
         write_output "Looking up server by id=#{server_id}\n"
-      elsif server_name
+      elsif server_name && server_name != ''
         if deployment_id
           write_output "Looking up server by nickname=#{server_name} deployment_id=#{deployment_id}\n"
         else
@@ -299,7 +337,7 @@ module MaestroDev
       else
         # get the last previously started server
         sid = get_field('rightscale_server_id')
-        if server_id && server_id.to_i > 0
+        if sid && sid.to_i > 0
           server_id = sid
           write_output "Using previously started RightScale server id=#{server_id}\n"
         else
@@ -314,6 +352,11 @@ module MaestroDev
           :deployment_id => deployment_id,
           :deployment_name => deployment_name
       )
+      if server.nil?
+        write_output "Error finding server by id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}\n"
+        set_error "Error finding server by id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}\n"
+        return
+      end
       server_id = get_server_id(server)
 
       write_output "Requesting server stop for id=#{server_id}\n"
@@ -356,14 +399,26 @@ module MaestroDev
       deployment_id = get_field('deployment_id')
       deployment_name = get_field('deployment_name')
       state = get_field('state')
+      timeout = get_field('timeout') || MaestroDev::RightScaleApiHelper::DEFAULT_TIMEOUT
+      timeout_interval = get_field('timeout_interval') || MaestroDev::RightScaleApiHelper::DEFAULT_INTERVAL
 
-      if server_id
+      if server_id && server_id.to_i > 0
         write_output "Looking up server by id=#{server_id}\n"
-      else
+      elsif server_name && server_name != ''
         if deployment_id
           write_output "Looking up server by nickname=#{server_name} deployment_id=#{deployment_id}\n"
         else
           write_output "Looking up server by nickname=#{server_name} deployment_name=#{deployment_name}\n"
+        end
+      else
+        # get the last previously started server
+        sid = get_field('rightscale_server_id')
+        if sid && sid.to_i > 0
+          server_id = sid
+          write_output "Using previously started RightScale server id=#{server_id}\n"
+        else
+          set_error 'Unable to find server id or name to wait.'
+          return
         end
       end
 
@@ -375,17 +430,23 @@ module MaestroDev
             :deployment_id => deployment_id,
             :deployment_name => deployment_name
         )
+        if server.nil?
+          write_output "Error finding server by id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}\n"
+          set_error "Error finding server by id=#{server_id}, name=#{server_name}, deployment_id=#{deployment_id}, deployment_name=#{deployment_name}\n"
+          return
+        end
         server_id = get_server_id(server)
       end
 
+      Maestro.log.info "Waiting for Server (id=#{server_id}, name=#{server_name}) to enter state=#{state}\n"
       write_output "Waiting for Server (id=#{server_id}, name=#{server_name}) to enter state=#{state}\n"
 
       result = client.wait(
           :server_id => server_id,
-          :state => state
+          :state => state,
+          :timeout => timeout,
+          :timeout_interval => timeout_interval
       )
-
-      set_field('rightscale_server_id', server_id)
 
       if !result.success
         errors = result.errors

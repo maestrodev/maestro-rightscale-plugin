@@ -33,7 +33,9 @@ module MaestroDev
     # Constructor
     # Params
     # +args+:: hash of params listed below
+    # +:email+:: RightScale user email
     # +:password+:: RightScale user password
+    # +:refresh_token+:: RightScale refresh token (can be used instead of email/password)
     # +:account_id+:: RightScale account id
     # +:api_url+:: RightScale API URL
     # +:api_version+:: RightScale API Version (default: 1.5)
@@ -189,6 +191,8 @@ module MaestroDev
           @logger.error("start(): Error launching Server (id=#{server_id}, name=#{server_name}): #{e.message}")
           return Result.new(:success => false, :errors => [e])
         end
+      else
+        instance = server.show.current_instance.show
       end
 
       if wait_until_started
@@ -498,7 +502,7 @@ module MaestroDev
 
         @logger.debug "#{indent}get_server(): Found servers for Server (id=#{server_id}, name=#{server_name}) in Deployment (id=#{deployment_id}, name=#{deployment_name})"
         # only one server left
-        server = servers.first
+        server = servers.first.show
       end
 
       @logger.debug "#{indent}get_server(): Returning Server (id=#{server_id}, name=#{server_name}) dump: #{server.inspect}"

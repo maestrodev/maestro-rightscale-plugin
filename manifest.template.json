@@ -131,6 +131,18 @@
                         "value": null,
                         "description": "Server id. If not set then nickname is used"
                     },
+                    "deployment_id": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "Deployment id. Used in combination with (non-unique) nickname to find the correct server"
+                    },
+                    "deployment_name": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "Deployment name. Used in combination with (non-unique) nickname to find the correct server"
+                    },
                     "account_id": {
                         "required": true,
                         "type": "Integer",
@@ -310,11 +322,35 @@
                         "value": "https://my.rightscale.com",
                         "description": "RightScale API endpoint URL"
                     },
+                    "oauth_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com/api/oauth2",
+                        "description": "RightScale OAuth API endpoint URL"
+                    },
+                    "refresh_token": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale API Refresh Token"
+                    },
                     "state": {
                         "required": true,
                         "type": "String",
                         "value": "operational",
                         "description": "Make the composition wait until the server is in this state (pending, booting, stopped, terminated, operational,...)"
+                    },
+                    "timeout": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": 600,
+                        "description": "The number of seconds to wait before timing out)"
+                    },
+                    "timeout_interval": {
+                        "required": false,
+                        "type": "Integer",
+                        "value": 10,
+                        "description": "The frequency of polling between state checks)"
                     }
                 },
                 "outputs": {
