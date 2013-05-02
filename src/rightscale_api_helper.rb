@@ -1399,6 +1399,10 @@ module MaestroDev
       opts.on('--wait-until-stopped', 'Wait until stopped before returning') do |w|
         options[:wait_until_stopped] = w
       end
+
+      opts.separator ''
+      opts.separator 'Shared options:'
+
       opts.on('--timeout seconds', Integer, 'Wait for start/stop this long before failing') do |w|
         options[:timeout] = w
       end
