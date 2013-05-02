@@ -942,19 +942,27 @@ module MaestroDev
         begin
           timeout_left = timeout
           last_state = ''
-          while timeout_left
+          interval_start = Time.now()
+          while timeout_left > 0
+            current_interval_start = Time.now()
             @logger.info "#{indent}create_cloudflow_process(): Waiting for CloudFlow process (id=#{process_id}, location=#{location})"
             result = get_cloudflow_process(:process_id => process_id, :indent => "#{indent}  ", :timeout => timeout, :access_token => access_token)
+
+            # get the amount of time it took to do the get
+            current_interval_completed = Time.now() - current_interval_start
+            current_interval_left = timeout_interval - current_interval_completed > 0 ? timeout_interval - current_interval_completed : 0
 
             if result.success
               process = result.value
               state = process['state']
               @logger.debug "#{indent}create_cloudflow_process(): returned process is #{process}"
 
+              reset = false
               if state != last_state
                 last_state = state
                 if timeout_reset
                   timeout_left = timeout
+                  reset = true
                 end
 
                 if show_progress
@@ -976,14 +984,29 @@ module MaestroDev
               elsif state == 'in_error'
                 # FIXME - we should attempt to abort this CloudFlow
                 @logger.error "#{indent}create_cloudflow_process(): Process (id=#{process_id}, location=#{location}) had an error, attempting to cancel it"
+                return Result.new(:success => false, :errors => [Exception.new('CloudFlow failed to complete successfully')])
               end
+
+              sleep_for = current_interval_left
+              if reset
+                # we're going to sleep for a full interval now
+                sleep_for = timeout_interval
+              end
+
+              # as long as sleeping won't make us go past our timeout, sleep
+              if Time.now() + sleep_for - interval_start < timeout
+                @logger.info "#{indent}create_cloudflow_process(): Sleeping for #{sleep_for} seconds"
+                sleep sleep_for
+              else
+                return Result.new(:success => false, :errors => [Exception.new('Timed out waiting for CloudFlow to complete')])
+              end
+
+              # less get time + sleep time
+              timeout_left -= current_interval_completed + sleep_for
             else
               @logger.error "#{indent}create_cloudflow_process(): Problem getting state for CloudFlow Process (id=#{process_id}, location=#{location}): #{result.errors.inspect}"
-              return Result.new(:success => true, :errors => result.errors, :notices => result.notices)
+              return Result.new(:success => false, :errors => result.errors, :notices => result.notices)
             end
-
-            sleep timeout_interval
-            timeout_left -= timeout_interval
           end
         rescue => e
           @logger.error "#{indent}create_cloudflow_process(): Error waiting for CloudFlow to terminate (id=#{process_id}, location=#{location}): #{e.message}"
