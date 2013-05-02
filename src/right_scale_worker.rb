@@ -35,6 +35,20 @@ module MaestroDev
       set_error("Invalid fields, must provide #{missing_fields.join(", ")}") unless missing_fields.empty?
     end
 
+    def validate_cloudflow_fields(missing_fields = [])
+      if get_field('cloudflow_name').nil?
+        missing_fields << 'cloudflow_name'
+      end
+      if get_field('cloudflow_inputs').nil?
+        missing_fields << 'cloudflow_inputs'
+      end
+      if get_field('command_string').nil?
+        missing_fields << 'command_string'
+      end
+
+      set_error("Invalid fields, must provide #{missing_fields.join(", ")}") unless missing_fields.empty?
+    end
+
     def validate_wait_fields
       missing_fields = []
       if get_field('state').nil?
@@ -625,6 +639,69 @@ module MaestroDev
 
       Maestro.log.info "***********************Completed RightScale.stop***************************"
     end
+
+
+    def create_cloudflow
+      Maestro.log.info "Starting RightScale CloudFlow Worker"
+
+      # make sure we have all the necessary fields
+      validate_cloudflow_fields()
+      return if error?
+
+      client = get_client()
+
+      # either server_id is needed, or server_name + deployment is needed
+      cloudflow_name = get_field('cloudflow_name')
+      cloudflow_inputs = get_field('cloudflow_inputs')
+      cloudflow_definition = get_field('command_string')
+      wait_until_complete = get_field('wait_until_complete')
+
+      # TODO: auth not currently initialized by client, need to fix helper
+      account_id = get_field('account_id')
+      username = get_field('username')
+      password = get_field('password')
+      api_url = get_field('api_url')
+      refresh_token = get_field('refresh_token')
+      oauth_url = get_field('oauth_url')
+
+      inputs = Hash.new()
+      if cloudflow_inputs.is_a?(Array)
+        cloudflow_inputs.each{|line|
+          key, value = line.split(/=/)
+          inputs[key] = value
+        }
+      end
+
+      write_output "Creating CloudFlow name=#{cloudflow_name} with inputs=#{inputs.inspect} and definition=#{cloudflow_definition}\n"
+
+
+      result = client.create_cloudflow_process(
+          :cloudflow_name => cloudflow_name,
+          :cloudflow_inputs => inputs,
+          :cloudflow_definition => cloudflow_definition,
+          :wait_until_complete => wait_until_complete,
+          :account_id => account_id,
+          :email => username,
+          :password => password,
+          :api_url => api_url,
+          :oauth_url => oauth_url,
+          :refresh_token => refresh_token
+      )
+
+      if !result.success
+        errors = result.errors
+        write_output "Error starting CloudFlow process name=#{cloudflow_name}\n"
+        set_error errors.first.message
+        return
+      end
+
+      process_id = result.value
+      set_field('rightscale_cloudflow_process_id', process_id) # deprecated
+      write_output "CloudFlow created with process_id #{process_id}\n"
+
+      Maestro.log.info "***********************Completed RightScale CloudFlow.create***************************"
+    end
+
 
     # TODO: pull code into helper and trim this down
     def execute

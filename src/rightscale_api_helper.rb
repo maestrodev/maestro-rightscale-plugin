@@ -35,6 +35,7 @@ module MaestroDev
     # +args+:: hash of params listed below
     # +:email+:: RightScale user email
     # +:password+:: RightScale user password
+    # +:oauth_url+:: RightScale API OAuth URL
     # +:refresh_token+:: RightScale refresh token (can be used instead of email/password)
     # +:account_id+:: RightScale account id
     # +:api_url+:: RightScale API URL
@@ -844,6 +845,7 @@ module MaestroDev
       timeout = args[:timeout] || DEFAULT_TIMEOUT
       timeout_interval = args[:timeout_interval] || DEFAULT_INTERVAL
       timeout_reset = args[:timeout_reset]
+      # TODO - must needs refactor, since the creds should only need to be in this instance and then used as needed
       access_token = args[:access_token]
       show_progress = args[:show_progress]
       api_version = DEFAULT_API_VERSION
@@ -1054,6 +1056,7 @@ module MaestroDev
       process_id = args[:process_id]
       timeout = args[:timeout] || DEFAULT_TIMEOUT
       api_version = DEFAULT_API_VERSION
+      # TODO - must needs refactor, since the creds should only need to be in this instance and then used as needed
       access_token = args[:access_token]
       indent = args[:indent] || ''
 

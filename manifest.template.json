@@ -594,6 +594,88 @@
                 "icon": "rightscale.png",
                 "tool_name": "Cloud"
             }
+        },
+        {
+            "name": "rightscale create cloudflow",
+            "description": "Create a RightScale CloudFlow process",
+            "license": "Apache License 2.0",
+            "author": "David Castro",
+            "version": "updated at build time",
+            "class": "MaestroDev::RightScaleWorker",
+            "type": "ruby",
+            "dependencies": [],
+            "task": {
+                "command": "/rightscale/create_cloudflow",
+                "inputs": {
+                    "cloudflow_name": {
+                        "required": true,
+                        "type": "String",
+                        "value": null,
+                        "description": "CloudFlow name"
+                    },
+                    "cloudflow_inputs": {
+                        "required": false,
+                        "type": "Array",
+                        "value": null,
+                        "description": "A list of CloudFlow input params (format: [$var]=value)"
+                    },
+                    "command_string": {
+                        "description": "The CloudFlow definition string",
+                        "required": true,
+                        "type": "String",
+                        "value": "define func()\nend"
+                    },
+                    "wait_until_complete": {
+                        "required": false,
+                        "type": "Boolean",
+                        "value": true,
+                        "description": "Make the composition wait until the CloudFlow is done executing"
+                    },
+                    "account_id": {
+                        "required": true,
+                        "type": "Integer",
+                        "value": null,
+                        "description": "RightScale account id"
+                    },
+                    "username": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale username"
+                    },
+                    "password": {
+                        "required": false,
+                        "type": "Password",
+                        "value": null,
+                        "description": "RightScale password"
+                    },
+                    "api_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com",
+                        "description": "RightScale API endpoint URL"
+                    },
+                    "oauth_url": {
+                        "required": false,
+                        "type": "Url",
+                        "value": "https://my.rightscale.com/api/oauth2",
+                        "description": "RightScale OAuth API endpoint URL"
+                    },
+                    "refresh_token": {
+                        "required": false,
+                        "type": "String",
+                        "value": null,
+                        "description": "RightScale API Refresh Token"
+                    }
+                },
+                "outputs": {
+                    "rightscale_cloudflow_process_id": {
+                        "type": "String"
+                    }
+                },
+                "icon": "rightscale.png",
+                "tool_name": "Cloud"
+            }
         }
     ]
 }
