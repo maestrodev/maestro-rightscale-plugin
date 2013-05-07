@@ -3,17 +3,18 @@ require 'rubygems'
 require 'logger'
 require 'optparse'
 require 'open-uri'
+require 'json'
 
 module MaestroDev
   class RightScaleApiHelper
-    CONNECT_PARAMS = %w(email password account_id api_url api_version cookies refresh_token oauth_url)
+    VALID_INIT_PARAMS = %w(email password account_id oauth_url refresh_token api_url api_version cookies verbose trace)
 
     DEFAULT_API_URL = 'https://my.rightscale.com'
     DEFAULT_API_VERSION = '1.5'
     DEFAULT_OAUTH_URL = 'https://my.rightscale.com/api/oauth2'
 
     DEFAULT_TIMEOUT = 600
-    DEFAULT_INTERVAL = 10
+    DEFAULT_TIMEOUT_INTERVAL = 10
 
     STATE_INACTIVE = 'inactive'
     STATE_PENDING = 'pending'
@@ -26,8 +27,11 @@ module MaestroDev
     SESSION_PATH = '/api/session'
     ACCOUNTS_PATH = '/api/accounts'
 
-    @trace = false,
-    @email, @password, @account_id, @oauth_url, @refresh_token, @api_url = DEFAULT_API_URL, @api_version = DEFAULT_API_VERSION
+    @client = nil # do NOT use this directly, call get_client(:indent => "#{indent}  ") instead
+    @trace = false, @verbose = false
+    @email = nil, @password = nil, @account_id = nil, @oauth_url = nil, @refresh_token = nil, @cookies = nil
+    @api_url = DEFAULT_API_URL, @api_version = DEFAULT_API_VERSION
+    @access_token, @access_token_create_time = nil
 
     ##
     # Constructor
@@ -40,13 +44,21 @@ module MaestroDev
     # +:account_id+:: RightScale account id
     # +:api_url+:: RightScale API URL
     # +:api_version+:: RightScale API Version (default: 1.5)
-    # +:delay_connect+:: do not connect on initialization (currently only used internally for CLI)
     # +:verbose+:: Enable DEBUG level logging
+    # +:trace+:: Enable TRACE level logging (includes RightApi client request logging)
     def initialize(args)
       delay_connect = args[:delay_connect] || false
-      @logger = args[:logger] || Logger.new(STDOUT)
-      @verbose = args[:verbose]
-      @trace = args[:trace]
+
+      # initialize all instance variables from hash
+      args.each { |key,value|
+        if value && VALID_INIT_PARAMS.include?(key.to_s)
+          instance_variable_set("@#{key}", value)
+        end
+      } if args.is_a? Hash
+
+      if @logger.nil?
+        @logger = Logger.new(STDOUT)
+      end
 
       # if this is a logger instance, set the level
       if (@logger.instance_of?Logger)
@@ -58,68 +70,93 @@ module MaestroDev
         end
       end
 
-      args_no_pass = args.reject {|key, _| key == :password }
-      @logger.debug "new(#{args_no_pass.inspect})"
+      # make sure we have credentials, else raise an Exception
+      if !(args[:account_id] && ((args[:email] && args[:password]) || args[:refresh_token]))
+        # we don't have sufficient credentials, so throw error
+        if !args[:account_id]
+          raise InsufficientCredentials.new('Account ID was not provided');
+        else
+          raise InsufficientCredentials.new('Either Email and Password must both be specified or refresh_token must be specified');
+        end
+      end
+
+      # remove options we don't want printed
+      filtered_args = args.reject {|key, _| key == :password }
+      if !@trace
+        # remove the logger from the options, it's verbose
+        filtered_args = filtered_args.reject {|key, _| key == :logger }
+      end
+      @logger.debug "new(#{filtered_args.inspect})"
+
+      # store out access token creation time
+      @access_token_create_time = Time.now
+
+      # get our access token
+      @logger.debug 'new(): getting access token from refresh token'
+      result = get_access_token(
+          :account_id => @account_id,
+          :refresh_token => @refresh_token,
+          :oauth_url => @oauth_url,
+          :api_url => @api_url,
+          :api_version => @api_version,
+          :email => @email,
+          :password => @password,
+          :indent => '  ')
+
+      # use the access token in a cookie for authentication
+      @access_token = result.value
 
       if !delay_connect
-        # initialize accepts all connect settings
-        if args[:account_id] && ((args[:email] && args[:password]) || args[:refresh_token])
-          connect(args)
-        else
-          # we don't have sufficient credentials, so throw error
-          if !args[:account_id]
-            raise InsufficientCredentials.new('Account ID was not provided');
-          else
-            raise InsufficientCredentials.new('Either Email and Password must both be specified or refresh_token must be specified');
-          end
-        end
+        get_client(:indent => '  ')
       end
     end
 
-    def connect(args={}) # :nodoc:
+    ##
+    # Connect the RightApi client if needed and return it (private method)
+    # Params
+    def get_client(args={}) # :nodoc:
       indent = args[:indent] || ''
-      cookies = args[:cookies] || {}
 
-      args_no_pass = args.reject {|key, _| key == :password }
-      @logger.debug "#{indent}connect(#{args_no_pass.inspect})"
+      # handle timeout of the access token, we'll get a new one if it's older than 15 minutes
+      if Time.now - @access_token_create_time > 900
+        # get our access token
+        @logger.debug "#{indent}get_client(): getting access token from refresh token"
+        result = get_access_token(
+            :account_id => @account_id,
+            :refresh_token => @refresh_token,
+            :oauth_url => @oauth_url,
+            :api_url => @api_url,
+            :api_version => @api_version,
+            :email => @email,
+            :password => @password,
+            :indent => "#{indent}  ")
 
-      # Initializing all instance variables from hash, else use what's already in the instance vars
-      args.each { |key,value|
-        instance_variable_set("@#{key}", value) if value && CONNECT_PARAMS.include?(key.to_s)
-      } if args.is_a? Hash
+        @access_token = result.value
+      end
 
-      # FIXME - handle timeout of the session token here
+      # create a new client with the access token
       if @client.nil?
-        if @refresh_token
-          @logger.debug "#{indent}connect(): getting access token from refresh token"
-          result = get_access_token(
-              :account_id => @account_id,
-              :refresh_token => @refresh_token,
-              :oauth_url => @oauth_url,
-              :api_url => @api_url,
-              :api_version => @api_version,
-              :indent => "#{indent}  ")
+        cookies = Hash.new()
+        cookies[:rs_gbl] = "#{@access_token}"
+        @logger.debug "#{indent}get_client(): using cookies: #{cookies}"
 
-          access_token = result.value
-          cookies[:rs_gbl] = "#{access_token}"
-          @logger.debug "#{indent}connect(): using cookies: #{cookies}"
+        @logger.debug "#{indent}get_client(): Creating a RightApi client (refresh_token=#{@refresh_token},access_token=#{@access_token},email=#{@email},password=*****,account_id=#{@account_id},api_url=#{@api_url},api_version=#{@api_version})"
+        @client = RightApi::Client.new(
+            :account_id => @account_id,
+            :api_url => @api_url,
+            :api_version => @api_version,
+            :cookies => cookies)
 
-          @logger.debug "#{indent}connect(): Creating a RightApi client (refresh_token=#{@refresh_token},access_token=#{access_token},email=#{@email},password=*****,account_id=#{@account_id},api_url=#{@api_url},api_version=#{@api_version})"
-          @client = RightApi::Client.new(
-              :account_id => @account_id,
-              :api_url => @api_url,
-              :api_version => @api_version,
-              :cookies => cookies)
-        else
-          @client = RightApi::Client.new(:email => @email, :password => @password, :account_id => @account_id, :api_url => @api_url, :api_version => @api_version)
-        end
         if @trace
           @client.log LogWrapper.new(@logger)
         end
       else
-        @logger.debug "#{indent}connect(): Already have a RightApi client, skipping"
+        @logger.debug "#{indent}get_client(): Already have a RightApi client, skipping"
       end
+
+      return @client
     end
+    private :get_client # declare private
 
     ##
     # Start a server
@@ -208,7 +245,7 @@ module MaestroDev
             :indent => "#{indent}  "
         )
         # replace the instance with a newer one, that'll have updated information after the wait
-        instance = @client.servers(:id => server_id).show.current_instance.show
+        instance = get_client(:indent => "#{indent}  ").servers(:id => server_id).show.current_instance.show
         if !result.success
           @logger.info "#{indent}start(): Started Server (id=#{server_id}, name=#{server_name}), but failed to wait for state"
           return Result.new(:success => false, :errors => result.errors, :value => instance)
@@ -337,7 +374,7 @@ module MaestroDev
       deployment_name = args[:deployment_name]
       state = args[:state]
       timeout = args[:timeout] || DEFAULT_TIMEOUT
-      timeout_interval = args[:timeout_interval] || DEFAULT_INTERVAL
+      timeout_interval = args[:timeout_interval] || DEFAULT_TIMEOUT_INTERVAL
       reset_timer_on_state_change = args[:timeout_reset] || false
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
@@ -445,7 +482,7 @@ module MaestroDev
       @logger.debug "#{indent}get_server(#{args_no_pass.inspect})"
 
       if server_id and server_id > 0
-        server = @client.servers(:id => server_id).show
+        server = get_client(:indent => "#{indent}  ").servers(:id => server_id).show
         if server.nil?
           @logger.warn "#{indent}get_server(): No Server (id=#{server_id}) found"
           return
@@ -456,7 +493,7 @@ module MaestroDev
 
         @logger.debug "#{indent}get_server(): Found Server (id=#{server_id}) in Deployment (id=#{deployment_id})"
       else
-        servers = @client.servers.index(:filter => ["name==#{server_name}"])
+        servers = get_client(:indent => "#{indent}  ").servers.index(:filter => ["name==#{server_name}"])
         # exact match the name
         servers.delete_if {|s| s.name != server_name }
         @logger.debug "#{indent}get_server(): #{servers.size} exact matches for server name '#{server_name}'."
@@ -529,14 +566,14 @@ module MaestroDev
 
       deployment = nil
       if deployment_id and deployment_id > 0
-        deployment = @client.deployments(:id => deployment_id).show
+        deployment = get_client(:indent => "#{indent}  ").deployments(:id => deployment_id).show
         if deployment.nil?
           @logger.warn "#{indent}get_deployment(): No deployment with id '#{deployment_id}'"
           return
         end
         @logger.debug "#{indent}get_deployment(): Found deployment '#{deployment_id}'."
       else
-        deployments = @client.deployments.index(:filter => ["name==#{deployment_name}"]);
+        deployments = get_client(:indent => "#{indent}  ").deployments.index(:filter => ["name==#{deployment_name}"]);
         if deployments.nil?
           @logger.warn "#{indent}get_deployment(): No deployments match '#{deployment_name}'"
           return
@@ -580,7 +617,7 @@ module MaestroDev
       end
 
       servers = deployment.show.servers.index
-      @logger.warn "#{indent}get_servers_in_deployment(): Returning servers for deployment (name=#{deployment_name}, id=#{deployment_id}): #{servers.inspect}"
+      @logger.debug "#{indent}get_servers_in_deployment(): Returning servers for deployment (name=#{deployment_name}, id=#{deployment_id}): #{servers.inspect}"
       return servers
     end
 
@@ -602,7 +639,7 @@ module MaestroDev
       deployment_name = args[:deployment_name]
       wait_until_started = args[:wait_until_started]
       timeout = args[:timeout] || DEFAULT_TIMEOUT
-      timeout_interval = args[:timeout_interval] || DEFAULT_INTERVAL
+      timeout_interval = args[:timeout_interval] || DEFAULT_TIMEOUT_INTERVAL
       timeout_reset = args[:timeout_reset]
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
@@ -723,14 +760,13 @@ module MaestroDev
       deployment_name = args[:deployment_name]
       wait_until_stopped = args[:wait_until_stopped]
       timeout = args[:timeout] || DEFAULT_TIMEOUT
-      timeout_interval = args[:timeout_interval] || DEFAULT_INTERVAL
+      timeout_interval = args[:timeout_interval] || DEFAULT_TIMEOUT_INTERVAL
       timeout_reset = args[:timeout_reset]
       show_progress = args[:show_progress]
       indent = args[:indent] || ''
 
       args_no_pass = args.reject {|key, _| key == :password }
       @logger.debug "#{indent}stop_servers_in_deployment(#{args_no_pass.inspect})"
-      @logger.debug "#{indent}stop_servers_in_deployment(#{args.inspect})"
       @logger.info "#{indent}stop_servers_in_deployment(): Stopping Deployment (id=#{deployment_id}, name=#{deployment_name})"
 
       servers = get_servers_in_deployment(:deployment_id => deployment_id, :deployment_name => deployment_name, :indent => "#{indent}  ")
@@ -843,10 +879,8 @@ module MaestroDev
       cloudflow_definition = args[:cloudflow_definition]
       wait_until_complete = args[:wait_until_complete]
       timeout = args[:timeout] || DEFAULT_TIMEOUT
-      timeout_interval = args[:timeout_interval] || DEFAULT_INTERVAL
+      timeout_interval = args[:timeout_interval] || DEFAULT_TIMEOUT_INTERVAL
       timeout_reset = args[:timeout_reset]
-      # TODO - must needs refactor, since the creds should only need to be in this instance and then used as needed
-      access_token = args[:access_token]
       show_progress = args[:show_progress]
       api_version = DEFAULT_API_VERSION
       indent = args[:indent] || ''
@@ -858,7 +892,6 @@ module MaestroDev
       errors = []
       notices = []
       location = nil
-      access_token = nil
 
       begin
         post_data = Hash.new();
@@ -879,18 +912,6 @@ module MaestroDev
           end
         end
 
-        if !access_token
-          # get an access token
-          new_args = args
-          new_args[:indent => "#{indent}  "]
-          result = get_access_token(new_args)
-          if !result.success
-            @logger.error "#{indent}get_cloudflow_process(): No credentials provided}"
-            return Result.new(:success => false, :errors => [Exception.new('No credentials provided')], :value => result.to_hash)
-          end
-          access_token = result.value
-        end
-
         # cloud_flow_process[name]=start_deploy_test1
         # cloud_flow_process[inputs]['$deployment_id']=391022003
         # cloud_flow_process[cloud_flow_definition]
@@ -901,7 +922,7 @@ module MaestroDev
                      :X_API_VERSION => api_version,
                      :content_type => 'application/x-www-form-urlencoded',
                      :accept => '*/*',
-                     :cookie => ["rs_gbl=#{access_token}"]
+                     :cookie => ["rs_gbl=#{@access_token}"]
         ) do |response, request, result|
           @logger.debug "#{indent}create_cloudflow_process(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
 
@@ -1056,8 +1077,6 @@ module MaestroDev
       process_id = args[:process_id]
       timeout = args[:timeout] || DEFAULT_TIMEOUT
       api_version = DEFAULT_API_VERSION
-      # TODO - must needs refactor, since the creds should only need to be in this instance and then used as needed
-      access_token = args[:access_token]
       indent = args[:indent] || ''
 
       args_no_pass = args.reject {|key, _| key == :password }
@@ -1072,25 +1091,13 @@ module MaestroDev
       location = nil
 
       begin
-        if !access_token
-          # get an access token
-          new_args = args
-          new_args[:indent => "#{indent}  "]
-          result = get_access_token(new_args)
-          if !result.success
-            @logger.error "#{indent}get_cloudflow_process(): No credentials provided}"
-            return Result.new(:success => false, :errors => result.errors, :notices => result.notices)
-          end
-          access_token = result.value
-        end
-
         # get the cloudflow
-        @client = RestClient::Resource.new("#{@api_url}#{CLOUDFLOW_PROCESS_PATH}/#{process_id}", :timeout => timeout)
+        client = RestClient::Resource.new("#{@api_url}#{CLOUDFLOW_PROCESS_PATH}/#{process_id}", :timeout => timeout)
         if @trace
           RestClient.log = LogWrapper.new(@logger)
         end
 
-        @client.get(:X_API_VERSION => api_version, :accept => '*/*', :cookie => ["rs_gbl=#{access_token}"]
+        client.get(:X_API_VERSION => api_version, :accept => '*/*', :cookie => ["rs_gbl=#{@access_token}"]
         ) do |response, request, result|
           @logger.debug "#{indent}get_cloudflow_process(): got response: response=#{response.inspect} result=#{result.to_hash.inspect}"
 
@@ -1192,7 +1199,7 @@ module MaestroDev
         end
       elsif email && password && account_id
         begin
-          #curl -v -X GET -H X-API-Version:1.5 -d 'username=user@@maestrodev.com' -d 'password=pass' -d 'account_href=/api/accounts/$id' https://us-3.rightscale.com/api/session
+          #curl -v -X POST -H X-API-Version:1.5 -d 'username=user@maestrodev.com' -d 'password=pass' -d 'account_href=/api/accounts/$id' https://us-3.rightscale.com/api/session
           client = RestClient::Resource.new("#{api_url}#{SESSION_PATH}", :timeout => timeout)
 
           post_data = Hash.new()
@@ -1431,6 +1438,10 @@ module MaestroDev
       end
       opts.on('-t', '--trace', 'Enable trace logging (show RightScale API REST calls)') do |t|
         options[:trace] = t
+        # if trace, then verbose too
+        if t
+          options[:verbose] = true
+        end
       end
     end
 
@@ -1440,9 +1451,12 @@ module MaestroDev
     indent = ''
 
     if options[:verbose] || options[:trace]
-      options_without_password = options.reject{|key, _| key == :password}
+      filtered_args = options.reject{|key, _| key == :password}
       options[:logger] = logger
-      logger.debug "#{indent}using options: #{options_without_password.inspect}"
+      if !options[:trace]
+        filtered_args = options.reject{|key, _| key == :logger}
+      end
+      logger.debug "#{indent}using options for constructor: #{filtered_args.inspect}"
     end
 
     helper = nil
@@ -1456,14 +1470,19 @@ module MaestroDev
     rescue InsufficientCredentials => e
       # looks like we didn't have sufficient credentials
       puts "Error connecting to API: #{e.message}"
-      puts "#{e.backtrace.inspect}" if options[:verbose] || options[:trace]
+      puts "#{e.backtrace.inspect}"
       exit 1
     rescue => e
       # looks like we didn't have sufficient credentials
       puts "Problem creating API client: #{e.message}"
-      puts "#{e.backtrace.inspect}" if options[:verbose] || options[:trace]
+      puts "#{e.backtrace.inspect}"
       exit 1
     end
+
+    # remove options intended for the constructor, which we don't need sent to methods
+    options = options.reject {|key, _| MaestroDev::RightScaleApiHelper::VALID_INIT_PARAMS.include?(key.to_s) }
+    options = options.reject {|key, _| key == :logger }
+    logger.debug "using options for method: #{options.inspect}"
 
     if options[:operation] == 'get-access-token'
       result = helper.get_access_token(options)
@@ -1503,7 +1522,10 @@ module MaestroDev
     elsif options[:operation] == 'get-deployment'
       deployment = helper.get_deployment(options)
       servers = helper.get_servers_in_deployment(options)
-      puts "Deployment name=#{deployment.name} description=#{deployment.description}"
+      puts "Deployment name=#{deployment.name}, description=#{deployment.description}"
+      servers.each {|server|
+        puts "  Server name=#{server.name}, state=#{server.state}"
+      }
     elsif options[:operation] == 'start-server'
       result = helper.start(options)
       if result.success

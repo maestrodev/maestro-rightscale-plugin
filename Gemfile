@@ -4,6 +4,7 @@ gem 'maestro_agent', '>= 1.5.0'
 
 #dependencies
 gem "right_api_client"
+gem "json"
 
 group :development do
   gem 'rake', '>=0.9.2.2'

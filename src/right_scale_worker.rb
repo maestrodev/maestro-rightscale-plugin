@@ -108,7 +108,7 @@ module MaestroDev
       end
     end
 
-    def get_client()
+    def get_client
       account_id = get_field('account_id')
       username = get_field('username')
       password = get_field('password')
@@ -118,7 +118,7 @@ module MaestroDev
 
       @log_wrapper = MaestroLogWrapper.new(self)
       
-      client = RightScaleApiHelper.new(
+      helper = RightScaleApiHelper.new(
           :account_id => account_id,
           :email => username,
           :password => password,
@@ -128,7 +128,7 @@ module MaestroDev
           :logger => @log_wrapper
       )
 
-      return client
+      return helper
     end
 
     def get_server
@@ -140,7 +140,7 @@ module MaestroDev
       validate_server_fields()
       return if error?
 
-      client = get_client()
+      helper = get_client()
 
       server_id = get_field('server_id')
       server_name = get_field('nickname')
@@ -157,7 +157,7 @@ module MaestroDev
         end
       end
 
-      server = client.get_server(
+      server = helper.get_server(
           :server_id => server_id,
           :server_name => server_name,
           :deployment_id => deployment_id,
@@ -233,7 +233,7 @@ module MaestroDev
       validate_server_fields()
       return if error?
 
-      client = get_client()
+      helper = get_client()
 
       # either server_id is needed, or server_name + deployment is needed
       server_id = get_field('server_id')
@@ -262,7 +262,7 @@ module MaestroDev
         end
       end
 
-      server = client.get_server(
+      server = helper.get_server(
           :server_id => server_id,
           :server_name => server_name,
           :deployment_id => deployment_id,
@@ -281,7 +281,7 @@ module MaestroDev
       set_field("#{provider}_ids", (get_field("#{provider}_ids") || []) << server_id)
       set_field("cloud_ids", (get_field("cloud_ids") || []) << server_id)
 
-      result = client.start(
+      result = helper.start(
         :server_id => server_id,
         :wait_until_started => wait_until_started
       )
@@ -331,7 +331,7 @@ module MaestroDev
       validate_server_fields()
       return if error?
 
-      client = get_client()
+      helper = get_client()
 
       # either server_id is needed, or server_name + deployment is needed
       server_id = get_field('server_id')
@@ -360,7 +360,7 @@ module MaestroDev
         end
       end
 
-      server = client.get_server(
+      server = helper.get_server(
           :server_id => server_id,
           :server_name => server_name,
           :deployment_id => deployment_id,
@@ -375,7 +375,7 @@ module MaestroDev
 
       write_output "Requesting server stop for id=#{server_id}\n"
 
-      result = client.stop(
+      result = helper.stop(
           :server_id => server_id,
           :wait_until_stopped => wait_until_stopped
       )
@@ -405,7 +405,7 @@ module MaestroDev
       validate_server_fields()
       return if error?
 
-      client = get_client()
+      helper = get_client()
 
       # either server_id is needed, or server_name + deployment is needed
       server_id = get_field('server_id')
@@ -414,7 +414,7 @@ module MaestroDev
       deployment_name = get_field('deployment_name')
       state = get_field('state')
       timeout = get_field('timeout') || MaestroDev::RightScaleApiHelper::DEFAULT_TIMEOUT
-      timeout_interval = get_field('timeout_interval') || MaestroDev::RightScaleApiHelper::DEFAULT_INTERVAL
+      timeout_interval = get_field('timeout_interval') || MaestroDev::RightScaleApiHelper::DEFAULT_TIMEOUT_INTERVAL
 
       if server_id && server_id.to_i > 0
         write_output "Looking up server by id=#{server_id}\n"
@@ -438,7 +438,7 @@ module MaestroDev
 
       # if we don't already have the server id, do other lookups to get it
       if !server_id
-        server = client.get_server(
+        server = helper.get_server(
             :server_id => server_id,
             :server_name => server_name,
             :deployment_id => deployment_id,
@@ -455,7 +455,7 @@ module MaestroDev
       Maestro.log.info "Waiting for Server (id=#{server_id}, name=#{server_name}) to enter state=#{state}\n"
       write_output "Waiting for Server (id=#{server_id}, name=#{server_name}) to enter state=#{state}\n"
 
-      result = client.wait(
+      result = helper.wait(
           :server_id => server_id,
           :state => state,
           :timeout => timeout,
@@ -490,9 +490,9 @@ module MaestroDev
       validate_deployment_fields()
       return if error?
 
-      client = get_client()
+      helper = get_client()
 
-      result = client.start_servers_in_deployment(
+      result = helper.start_servers_in_deployment(
           :deployment_id => deployment_id,
           :deployment_name => deployment_name,
           :wait_until_started => wait_until_started,
@@ -580,9 +580,9 @@ module MaestroDev
       validate_deployment_fields()
       return if error?
 
-      client = get_client()
+      helper = get_client()
 
-      result = client.stop_servers_in_deployment(
+      result = helper.stop_servers_in_deployment(
           :deployment_id => deployment_id,
           :deployment_name => deployment_name,
           :wait_until_stopped => wait_until_stopped,
@@ -648,21 +648,13 @@ module MaestroDev
       validate_cloudflow_fields()
       return if error?
 
-      client = get_client()
+      helper = get_client()
 
       # either server_id is needed, or server_name + deployment is needed
       cloudflow_name = get_field('cloudflow_name')
       cloudflow_inputs = get_field('cloudflow_inputs')
       cloudflow_definition = get_field('command_string')
       wait_until_complete = get_field('wait_until_complete')
-
-      # TODO: auth not currently initialized by client, need to fix helper
-      account_id = get_field('account_id')
-      username = get_field('username')
-      password = get_field('password')
-      api_url = get_field('api_url')
-      refresh_token = get_field('refresh_token')
-      oauth_url = get_field('oauth_url')
 
       inputs = Hash.new()
       if cloudflow_inputs.is_a?(Array)
@@ -674,18 +666,12 @@ module MaestroDev
 
       write_output "Creating CloudFlow name=#{cloudflow_name} with inputs=#{inputs.inspect} and definition=#{cloudflow_definition}\n"
 
-
-      result = client.create_cloudflow_process(
+      result = helper.create_cloudflow_process(
           :cloudflow_name => cloudflow_name,
           :cloudflow_inputs => inputs,
           :cloudflow_definition => cloudflow_definition,
           :wait_until_complete => wait_until_complete,
-          :account_id => account_id,
-          :email => username,
-          :password => password,
-          :api_url => api_url,
-          :oauth_url => oauth_url,
-          :refresh_token => refresh_token
+          :api_url => api_url
       )
 
       if !result.success
