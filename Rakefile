@@ -1,71 +1,19 @@
 require 'rake/clean'
 require 'rspec/core/rake_task'
-require 'zippy'
-require 'git'
-require 'nokogiri'
-require 'json'
+require 'maestro/plugin/rake_tasks'
 
-$:.push File.expand_path("../src", __FILE__)
+$:.push File.expand_path('../src', __FILE__)
 
-CLEAN.include("manifest.json", "*-plugin-*.zip", "vendor", "package", "tmp", ".bundle")
+CLEAN.include('manifest.json', '*-plugin-*.zip', 'vendor', 'package', 'tmp', '.bundle')
 
 task :default => :all
-task :all => [:clean, :bundle, :spec, :package]
+task :all => [:clean, :spec, :bundle, :package]
 
-desc "Run specs"
-RSpec::Core::RakeTask.new
-
-desc "Get dependencies with Bundler"
-task :bundle do
-  sh %{bundle package} do |ok, res|
-    raise "Error bundling" if ! ok
-  end
+desc 'Run specs'
+RSpec::Core::RakeTask.new do |t|
+  t.rspec_opts = '--format p --color'
 end
 
-def add_file( zippyfile, dst_dir, f )
-  puts "Writing #{f} at #{dst_dir}"
-  zippyfile["#{dst_dir}/#{f}"] = File.open(f)
-end
+Maestro::Plugin::RakeTasks::BundleTask.new
 
-def add_dir( zippyfile, dst_dir, d )
-  glob = "#{d}/**/*"
-  FileList.new( glob ).each { |f|
-    if (File.file?(f))
-      add_file zippyfile, dst_dir, f
-    end
-  }
-end
-
-desc "Package plugin zip"
-task :package do
-  doc = Nokogiri::XML(IO.read("pom.xml"))
-  artifactId = doc.css('artifactId').first.text
-  version = doc.css('version').first.text
-  zip_file = "#{artifactId}-#{version}.zip"
-
-  if File.exists?(".git")
-    git = Git.open(".")
-    # check if there are modified files
-    if git.status.select {|s| s.type == "M"}.empty?
-      commit = git.log.first.sha[0..5]
-      version = "#{version}-#{commit}"
-    else
-      puts "WARNING: There are modified files, not using commit hash in version"
-    end
-  end
-
-  # update manifest
-  manifest = JSON.parse(IO.read("manifest.template.json"))
-  tasks =  manifest['tasks'] || manifest
-  tasks.each { |t| t['version'] = version }
-  File.open("manifest.json",'w'){ |f| f.write(JSON.pretty_generate(manifest)) }
-
-  Zippy.create zip_file do |z|
-    add_dir z, '.', 'src'
-    add_dir z, '.', 'vendor'
-    add_dir z, '.', 'images'
-    add_file z, '.', 'manifest.json'
-    add_file z, '.', 'README.md'
-    add_file z, '.', 'LICENSE'
-  end
-end
+Maestro::Plugin::RakeTasks::PackageTask.new

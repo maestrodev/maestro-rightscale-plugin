@@ -6,10 +6,7 @@ gem 'maestro_agent', '>= 1.5.0'
 gem "right_api_client"
 
 group :development do
-  gem 'rake', '>=0.9.2.2'
-  gem 'nokogiri'
-  gem 'git'
-  gem 'zippy'
+  gem 'maestro-plugin-rake-tasks'
 end
 
 group :test do
