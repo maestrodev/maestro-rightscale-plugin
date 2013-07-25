@@ -19,7 +19,7 @@
             "license": "Apache License 2.0",
             "author": "Brett Porter",
             "version": "updated at build time",
-            "class": "MaestroDev::RightScaleWorker",
+            "class": "MaestroDev::RightScalePlugin::RightScaleWorker",
             "type": "ruby",
             "dependencies": [],
             "task": {
@@ -113,7 +113,7 @@
             "license": "Apache License 2.0",
             "author": "Brett Porter",
             "version": "updated at build time",
-            "class": "MaestroDev::RightScaleWorker",
+            "class": "MaestroDev::RightScalePlugin::RightScaleWorker",
             "type": "ruby",
             "dependencies": [],
             "task": {
@@ -189,7 +189,7 @@
             "license": "Apache License 2.0",
             "author": "Brett Porter",
             "version": "updated at build time",
-            "class": "MaestroDev::RightScaleWorker",
+            "class": "MaestroDev::RightScalePlugin::RightScaleWorker",
             "type": "ruby",
             "dependencies": [],
             "task": {
@@ -280,7 +280,7 @@
             "license": "Apache License 2.0",
             "author": "Brett Porter",
             "version": "updated at build time",
-            "class": "MaestroDev::RightScaleWorker",
+            "class": "MaestroDev::RightScalePlugin::RightScaleWorker",
             "type": "ruby",
             "dependencies": [],
             "task": {
@@ -371,7 +371,7 @@
             "license": "Apache License 2.0",
             "author": "David Castro",
             "version": "updated at build time",
-            "class": "MaestroDev::RightScaleWorker",
+            "class": "MaestroDev::RightScalePlugin::RightScaleWorker",
             "type": "ruby",
             "dependencies": [],
             "task": {
@@ -453,7 +453,7 @@
             "license": "Apache License 2.0",
             "author": "David Castro",
             "version": "updated at build time",
-            "class": "MaestroDev::RightScaleWorker",
+            "class": "MaestroDev::RightScalePlugin::RightScaleWorker",
             "type": "ruby",
             "dependencies": [],
             "task": {
@@ -535,7 +535,7 @@
             "license": "Apache License 2.0",
             "author": "Brett Porter",
             "version": "updated at build time",
-            "class": "MaestroDev::RightScaleWorker",
+            "class": "MaestroDev::RightScalePlugin::RightScaleWorker",
             "type": "ruby",
             "dependencies": [],
             "task": {
@@ -601,7 +601,7 @@
             "license": "Apache License 2.0",
             "author": "David Castro",
             "version": "updated at build time",
-            "class": "MaestroDev::RightScaleWorker",
+            "class": "MaestroDev::RightScalePlugin::RightScaleWorker",
             "type": "ruby",
             "dependencies": [],
             "task": {

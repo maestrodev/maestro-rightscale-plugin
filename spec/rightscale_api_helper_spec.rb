@@ -11,11 +11,11 @@ DEPLOYMENT_NAME="David Test"
 SERVER_NAME="Centrepoint Tomcat"
 SERVER_ID=747597003
 
-describe MaestroDev::RightScaleApiHelper do
+describe MaestroDev::RightScalePlugin::RightScaleApiHelper do
 
   #describe 'get_server' do
   #  before :all do
-  #    @helper = MaestroDev::RightScaleApiHelper.new(:email => EMAIL, :password => PASSWORD, :account_id => ACCOUNT_ID, :api_url => API_URL, :api_version => API_VERSION)
+  #    @helper = MaestroDev::RightScalePlugin::RightScaleApiHelper.new(:email => EMAIL, :password => PASSWORD, :account_id => ACCOUNT_ID, :api_url => API_URL, :api_version => API_VERSION)
   #  end
   #
   #  it "should successfully get server info" do
@@ -26,7 +26,7 @@ describe MaestroDev::RightScaleApiHelper do
   #
   #describe 'start' do
   #  before :all do
-  #    @helper = MaestroDev::RightScaleApiHelper.new(:email => EMAIL, :password => PASSWORD, :account_id => ACCOUNT_ID, :api_url => API_URL, :api_version => API_VERSION)
+  #    @helper = MaestroDev::RightScalePlugin::RightScaleApiHelper.new(:email => EMAIL, :password => PASSWORD, :account_id => ACCOUNT_ID, :api_url => API_URL, :api_version => API_VERSION)
   #  end
   #  after :all do
   #    @helper.stop(:server_id => SERVER_ID, :wait_until_started => true)

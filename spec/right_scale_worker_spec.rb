@@ -7,7 +7,7 @@ VALID_PASSWORD='qwerty'
 NICKNAME = 'RSB'
 #NICKNAME = 'Rackspace'
 
-describe MaestroDev::RightScaleWorker do
+describe MaestroDev::RightScalePlugin::RightScaleWorker do
 
 #  let (:participant) { described_class.new }
 #
