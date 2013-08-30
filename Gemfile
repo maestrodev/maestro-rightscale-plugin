@@ -3,6 +3,7 @@ source 'https://rubygems.org/'
 gem 'maestro_plugin', '>= 0.0.17'
 
 #dependencies
+gem "jruby-openssl"
 gem "right_api_client"
 
 group :development do
