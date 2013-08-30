@@ -1,9 +1,9 @@
-require 'maestro_agent'
-require 'rubygems'
-require File.expand_path('../rightscale_api_helper', __FILE__)
+require 'maestro_plugin'
+require 'rubygems'  # Unsure why this is required
+require 'rightscale_api_helper'
 
 module MaestroDev
-  module RightScalePlugin
+  module Plugin
     class RightScaleWorker < Maestro::MaestroWorker
   
       def provider
