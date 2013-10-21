@@ -4,7 +4,7 @@
 
   <groupId>com.maestrodev.maestro.plugins</groupId>
   <artifactId>maestro-rightscale-plugin</artifactId>
-  <version>1.5-SNAPSHOT</version>
+  <version>1.5</version>
   <name>maestro-rightscale-plugin</name>
   <description>Start/stop a server defined in RightScale</description>
   <packaging>pom</packaging>
